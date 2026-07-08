@@ -1,12 +1,10 @@
 import { Router } from 'express';
 import { planRequestSchema } from '../schemas/planRequest.schema';
 import { replaceRequestSchema } from '../schemas/replaceRequest.schema';
-import { requireAuth } from '../middleware/auth';
 import { plansRateLimiter } from '../middleware/rateLimiter';
 
 export const plansRouter = Router();
 
-plansRouter.use(requireAuth);
 plansRouter.use(plansRateLimiter);
 
 plansRouter.post('/', (req, res) => {
