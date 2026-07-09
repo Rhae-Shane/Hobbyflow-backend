@@ -1,0 +1,28 @@
+# Supabase local CLI config — link your remote project with: supabase link
+# Docs: https://supabase.com/docs/guides/cli
+
+project_id = "hobbyflow"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["hobbyflow://", "exp://127.0.0.1:8081"]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
