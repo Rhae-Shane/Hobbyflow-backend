@@ -1,13 +1,21 @@
 import { Router } from 'express';
+import { requireAuth } from '../middleware/auth';
+import { plansRateLimiter } from '../middleware/rateLimiter';
 import { planRequestSchema } from '../schemas/planRequest.schema';
 import { replaceRequestSchema } from '../schemas/replaceRequest.schema';
-import { plansRateLimiter } from '../middleware/rateLimiter';
+import {
+  DuplicateTechniqueError,
+  generatePlan,
+  PlannerUnavailableError,
+  replaceTechnique,
+} from '../services/planner/plannerService';
 
 export const plansRouter = Router();
 
+plansRouter.use(requireAuth);
 plansRouter.use(plansRateLimiter);
 
-plansRouter.post('/', (req, res) => {
+plansRouter.post('/', async (req, res, next) => {
   const parsed = planRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -18,14 +26,18 @@ plansRouter.post('/', (req, res) => {
     });
   }
 
-  // TODO: wire planner pipeline (prompt → AI → validator → normalizer → modality rules)
-  return res.status(501).json({
-    error: 'Plan generation not implemented yet',
-    received: parsed.data,
-  });
+  try {
+    const plan = await generatePlan(parsed.data);
+    return res.status(200).json(plan);
+  } catch (error) {
+    if (error instanceof PlannerUnavailableError) {
+      return res.status(503).json({ error: error.message });
+    }
+    return next(error);
+  }
 });
 
-plansRouter.post('/replace', (req, res) => {
+plansRouter.post('/replace', async (req, res, next) => {
   const parsed = replaceRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -36,9 +48,16 @@ plansRouter.post('/replace', (req, res) => {
     });
   }
 
-  // TODO: wire replacement flow
-  return res.status(501).json({
-    error: 'Technique replacement not implemented yet',
-    received: parsed.data,
-  });
+  try {
+    const result = await replaceTechnique(parsed.data);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof DuplicateTechniqueError) {
+      return res.status(409).json({ error: error.message });
+    }
+    if (error instanceof PlannerUnavailableError) {
+      return res.status(503).json({ error: error.message });
+    }
+    return next(error);
+  }
 });
