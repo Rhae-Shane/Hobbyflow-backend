@@ -71,97 +71,48 @@ export const openApiDocument = {
         tags: ['Authentication'],
         summary: 'Get access token',
         description:
-          'Obtain a Supabase JWT for testing protected endpoints. Use provider `email` for instant token, or `google` to get an OAuth URL (complete sign-in in the browser, then copy the token from the callback page).',
+          'Sign in with email and password to get a Supabase JWT for testing protected endpoints in the API docs.',
         requestBody: {
           required: true,
           content: {
             'application/json': {
               schema: {
-                oneOf: [
-                  {
-                    type: 'object',
-                    required: ['provider', 'email', 'password'],
-                    properties: {
-                      provider: { type: 'string', enum: ['email'], example: 'email' },
-                      email: {
-                        type: 'string',
-                        format: 'email',
-                        example: 'omesh@gmail.com',
-                      },
-                      password: {
-                        type: 'string',
-                        format: 'password',
-                        example: 'test@123',
-                      },
-                    },
+                type: 'object',
+                required: ['email', 'password'],
+                properties: {
+                  email: {
+                    type: 'string',
+                    format: 'email',
+                    example: 'omesh@gmail.com',
                   },
-                  {
-                    type: 'object',
-                    required: ['provider'],
-                    properties: {
-                      provider: { type: 'string', enum: ['google'], example: 'google' },
-                    },
+                  password: {
+                    type: 'string',
+                    format: 'password',
+                    example: 'test@123',
                   },
-                ],
+                },
               },
-              examples: {
-                email: {
-                  summary: 'Email sign-in',
-                  value: {
-                    provider: 'email',
-                    email: 'omesh@gmail.com',
-                    password: 'test@123',
-                  },
-                },
-                google: {
-                  summary: 'Google sign-in',
-                  value: {
-                    provider: 'google',
-                  },
-                },
+              example: {
+                email: 'omesh@gmail.com',
+                password: 'test@123',
               },
             },
           },
         },
         responses: {
           200: {
-            description: 'Token issued (email) or OAuth URL returned (google)',
+            description: 'Access token issued',
             content: {
               'application/json': {
                 schema: {
-                  oneOf: [
-                    {
-                      type: 'object',
-                      properties: {
-                        accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                        refreshToken: { type: 'string', example: 'v1.MRj...' },
-                        expiresIn: { type: 'integer', example: 3600 },
-                        userId: { type: 'string', example: '33277cf6-c13a-46bb-892b-aa15d643144b' },
-                        email: { type: 'string', example: 'omesh@gmail.com' },
-                      },
-                    },
-                    {
-                      type: 'object',
-                      properties: {
-                        provider: { type: 'string', example: 'google' },
-                        url: {
-                          type: 'string',
-                          format: 'uri',
-                          example: 'https://your-project.supabase.co/auth/v1/authorize?provider=google',
-                        },
-                        redirectTo: {
-                          type: 'string',
-                          format: 'uri',
-                          example: 'http://localhost:3000/api/v1/auth/callback',
-                        },
-                        message: {
-                          type: 'string',
-                          example:
-                            'Open the URL in a browser. After sign-in you will land on the callback page with your token.',
-                        },
-                      },
-                    },
-                  ],
+                  type: 'object',
+                  properties: {
+                    accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+                    refreshToken: { type: 'string', example: 'v1.MRj...' },
+                    expiresIn: { type: 'integer', example: 3600 },
+                    userId: { type: 'string', example: '33277cf6-c13a-46bb-892b-aa15d643144b' },
+                    email: { type: 'string', example: 'omesh@gmail.com' },
+                  },
                 },
               },
             },
@@ -197,24 +148,6 @@ export const openApiDocument = {
                   error: 'Sign-in service is not configured on this server.',
                   code: 'AUTH_SERVICE_UNAVAILABLE',
                 }),
-              },
-            },
-          },
-        },
-      },
-    },
-    '/api/v1/auth/callback': {
-      get: {
-        tags: ['Authentication'],
-        summary: 'Google OAuth callback',
-        description:
-          'Landing page after Google sign-in. Displays the access token to copy into API docs. Add this URL to Supabase → Authentication → URL Configuration → Redirect URLs.',
-        responses: {
-          200: {
-            description: 'HTML page showing the access token',
-            content: {
-              'text/html': {
-                schema: { type: 'string' },
               },
             },
           },
