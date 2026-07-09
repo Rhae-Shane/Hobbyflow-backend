@@ -6,9 +6,10 @@ Database schema and migrations for HobbyFlow auth + plan sync.
 
 | Table | Purpose |
 |-------|---------|
-| `profiles` | One row per auth user — identity fields from Supabase Auth |
+| `users` | One row per auth user — identity fields from Supabase Auth |
 | `user_preferences` | Onboarding choices — one row per user, typed columns + `text[]` for multi-select |
-| `user_plans` | Plan JSON, onboarding profile, streak — synced from the mobile app |
+| `hobbies` | One user → many hobbies (`user_id` FK with `ON DELETE CASCADE`) |
+| `user_plans` | One plan per hobby — plan JSON, onboarding profile, streak |
 
 The Express API **does not** read or write these tables. The app uses the **anon key** + user session; RLS restricts each user to their own rows. The server only uses the **service role key** for `auth.getUser(token)` JWT verification.
 
@@ -49,6 +50,7 @@ npm run db:push
 | `migrations/20260709150000_profiles_auth_fields.sql` | Provider, email_verified, profile sync on auth update + backfill |
 | `migrations/20260709160000_profiles_preferences.sql` | Legacy `preferences` JSONB on profiles (superseded) |
 | `migrations/20260709170000_user_preferences_table.sql` | `user_preferences` table; migrates JSONB; drops `profiles.preferences` |
+| `migrations/20260709180000_users_and_hobbies.sql` | Rename `profiles` → `users`; add `hobbies`; `user_plans` per hobby |
 
 Add new migrations with:
 
@@ -58,6 +60,7 @@ supabase migration new <description>
 
 ## Row Level Security
 
-- Users can **select / insert / update** only their own `profiles`, `user_preferences`, and `user_plans` rows.
+- Users can **select / insert / update** only their own `users`, `user_preferences`, `hobbies`, and `user_plans` rows.
+- Deleting a user (via `auth.users`) cascades to `users` → `hobbies` → `user_plans`.
 - No **delete** policies — plan clearing is local-only; rows persist for cross-device sync.
 - `service_role` bypasses RLS (server JWT verification only; never ship to the client).
