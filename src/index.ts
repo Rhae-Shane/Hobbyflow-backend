@@ -9,6 +9,7 @@ import { jsonParseErrorHandler } from './middleware/jsonParseErrorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { authRouter } from './routes/auth.route';
+import { chatRouter } from './routes/chat.route';
 import { plansRouter } from './routes/plans.route';
 
 const app = express();
@@ -38,6 +39,7 @@ app.use(
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/plans', plansRouter);
+app.use('/api/v1/chat', chatRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

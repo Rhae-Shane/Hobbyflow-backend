@@ -11,3 +11,14 @@ export const plansRateLimiter = rateLimit({
     code: ErrorCodes.RATE_LIMITED,
   },
 });
+
+export const chatRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Too many chat requests. Please wait a few minutes and try again.',
+    code: ErrorCodes.RATE_LIMITED,
+  },
+});

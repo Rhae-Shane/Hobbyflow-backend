@@ -1,12 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
 import { AppError, ErrorCodes } from '../lib/AppError';
 import { createChildLogger } from '../lib/logger';
+import { mapAuthUser } from '../lib/mapAuthUser';
 import { supabaseAdmin } from '../lib/supabase';
+import type { AppUser } from '../types/user.types';
 
 const log = createChildLogger({ module: 'auth' });
 
 export type AuthenticatedRequest = Request & {
-  user?: { id: string; email?: string };
+  user?: AppUser;
 };
 
 export async function requireAuth(
@@ -47,8 +49,8 @@ export async function requireAuth(
       return;
     }
 
-    req.user = { id: data.user.id, email: data.user.email };
-    log.debug({ userId: data.user.id, path: req.path }, 'Request authenticated');
+    req.user = mapAuthUser(data.user);
+    log.debug({ userId: req.user.id, path: req.path }, 'Request authenticated');
     next();
   } catch (err) {
     log.error({ path: req.path, err }, 'Auth service error');

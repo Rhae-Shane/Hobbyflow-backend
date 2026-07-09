@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { env } from '../config/env';
 import { AppError, ErrorCodes } from '../lib/AppError';
 import { createChildLogger } from '../lib/logger';
+import { mapAuthUser } from '../lib/mapAuthUser';
 import { supabaseAuth } from '../lib/supabase';
 import { toValidationError } from '../lib/validationError';
 import { authTokenSchema } from '../schemas/authToken.schema';
@@ -24,14 +25,17 @@ function formatTokenResponse(session: {
   access_token: string;
   refresh_token: string;
   expires_in?: number;
-  user: { id: string; email?: string };
+  user: Parameters<typeof mapAuthUser>[0];
 }) {
+  const user = mapAuthUser(session.user);
+
   return {
     accessToken: session.access_token,
     refreshToken: session.refresh_token,
     expiresIn: session.expires_in ?? 3600,
-    userId: session.user.id,
-    email: session.user.email,
+    userId: user.id,
+    email: user.email,
+    user,
   };
 }
 

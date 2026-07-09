@@ -29,6 +29,24 @@ const errorSchema = (example: { error: string; code: string; field?: string }) =
   },
 });
 
+const appUserSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', example: '8ccf24c4-733f-4f6d-b0cd-0d230ac5bf40' },
+    email: { type: 'string', nullable: true, example: 'rhaeshane@gmail.com' },
+    fullName: { type: 'string', nullable: true, example: 'Rhae Shane' },
+    avatarUrl: {
+      type: 'string',
+      nullable: true,
+      example: 'https://lh3.googleusercontent.com/a/example=s96-c',
+    },
+    provider: { type: 'string', nullable: true, example: 'google' },
+    emailVerified: { type: 'boolean', example: true },
+    createdAt: { type: 'string', nullable: true, example: '2026-07-09T12:04:32.565736Z' },
+    lastSignInAt: { type: 'string', nullable: true, example: '2026-07-09T12:04:34.255402Z' },
+  },
+};
+
 export const openApiDocument = {
   openapi: '3.0.0',
   info: {
@@ -112,6 +130,7 @@ export const openApiDocument = {
                     expiresIn: { type: 'integer', example: 3600 },
                     userId: { type: 'string', example: '33277cf6-c13a-46bb-892b-aa15d643144b' },
                     email: { type: 'string', example: 'omesh@gmail.com' },
+                    user: appUserSchema,
                   },
                 },
               },
