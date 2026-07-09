@@ -1,8 +1,20 @@
 import 'dotenv/config';
 
+const VALID_LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const;
+type LogLevel = (typeof VALID_LOG_LEVELS)[number];
+
+function resolveLogLevel(): LogLevel {
+  const configured = process.env.LOG_LEVEL as LogLevel | undefined;
+  if (configured && VALID_LOG_LEVELS.includes(configured)) {
+    return configured;
+  }
+  return (process.env.NODE_ENV ?? 'development') === 'production' ? 'info' : 'debug';
+}
+
 export const env = {
   PORT: Number(process.env.PORT ?? 3000),
   NODE_ENV: process.env.NODE_ENV ?? 'development',
+  LOG_LEVEL: resolveLogLevel(),
   GROQ_API_KEY: process.env.GROQ_API_KEY ?? '',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
   PLAN_CACHE_TTL_MS: Number(process.env.PLAN_CACHE_TTL_MS ?? 86_400_000),

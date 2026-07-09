@@ -1,6 +1,7 @@
 import type { PlanRequest } from '../../schemas/planRequest.schema';
 import type { ReplaceRequest } from '../../schemas/replaceRequest.schema';
 import type { Plan, Technique } from '../../types/plan.types';
+import { createChildLogger } from '../../lib/logger';
 import { getCachedPlan, getCacheKey, setCachedPlan } from '../cache/planCache';
 import { createGeminiProvider } from '../provider/geminiProvider';
 import { createGroqProvider } from '../provider/groqProvider';
@@ -11,6 +12,8 @@ import { normalizeTechniques } from './normalizer';
 import { buildPlanResponse } from './planResponseBuilder';
 import { isDuplicateTechniqueName } from './replacementRules';
 import type { RawPlanResponse, RawTechniqueResponse } from './validator';
+
+const log = createChildLogger({ module: 'planner' });
 
 const groqProvider = createGroqProvider();
 const geminiProvider = createGeminiProvider();
@@ -35,11 +38,11 @@ async function callProviders<T>(
   try {
     return await operation(groqProvider);
   } catch (groqError) {
-    console.warn('[planner] Groq failed, trying Gemini immediately', groqError);
+    log.warn({ err: groqError }, 'Groq failed, trying Gemini immediately');
     try {
       return await operation(geminiProvider);
     } catch (geminiError) {
-      console.error('[planner] Both AI providers failed', geminiError);
+      log.error({ err: geminiError }, 'Both AI providers failed');
       return null;
     }
   }
@@ -73,11 +76,11 @@ function parseTechniqueOrder(techniqueId: string): number {
 export async function generatePlan(input: PlanRequest): Promise<Plan> {
   const cached = getCachedPlan(input);
   if (cached) {
-    console.log('[planCache] HIT', getCacheKey(input));
+    log.debug({ cacheKey: getCacheKey(input) }, 'Plan cache hit');
     return cached;
   }
 
-  console.log('[planCache] MISS', getCacheKey(input));
+  log.info({ cacheKey: getCacheKey(input), hobby: input.hobby }, 'Plan cache miss');
 
   const raw = await callProviders((provider) => provider.generateRoadmap(input));
 
@@ -88,7 +91,7 @@ export async function generatePlan(input: PlanRequest): Promise<Plan> {
         'Plan generation is temporarily unavailable for this hobby',
       );
     }
-    console.log('[planner] Serving static fallback plan for', input.hobby);
+    log.warn({ hobby: input.hobby }, 'Serving static fallback plan');
     return fallback;
   }
 
@@ -113,7 +116,7 @@ async function suggestReplacementWithRetry(
 
   if (isDuplicateTechniqueName(technique.name, input.remainingTechniques)) {
     if (allowRetry) {
-      console.warn('[planner] Duplicate replacement detected, retrying once');
+      log.warn({ techniqueId: input.techniqueId, hobby: input.hobby }, 'Duplicate replacement, retrying once');
       return suggestReplacementWithRetry(input, order, false);
     }
     throw new DuplicateTechniqueError();
