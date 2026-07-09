@@ -19,6 +19,7 @@ export const env = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
   PLAN_CACHE_TTL_MS: Number(process.env.PLAN_CACHE_TTL_MS ?? 86_400_000),
   SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
   SUPABASE_SERVICE_ROLE_KEY:
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? '',
   SUPABASE_JWKS_URL: process.env.SUPABASE_JWKS_URL ?? '',
