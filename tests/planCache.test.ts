@@ -80,6 +80,6 @@ describe('planCache', () => {
 
     jest.advanceTimersByTime(86_400_001);
     expect(getCachedPlan(request)).toBeNull();
-    expect(getCacheKey(request)).toBe('chess|beginner|learn tactics|30 min/day');
+    expect(getCacheKey(request)).toBe('chess|beginner|learn tactics|30 min/day|');
   });
 });

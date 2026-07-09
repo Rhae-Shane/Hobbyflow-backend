@@ -21,10 +21,13 @@ create index if not exists users_completed_onboarding_at_idx
 create table if not exists public.user_preferences (
   user_id uuid references public.users on delete cascade primary key,
   top_goals text[] not null default '{}',
-  selected_tags text[] not null default '{}',
   user_roles text[] not null default '{}',
+  age_range text not null default '',
+  accessibility_needs text[] not null default '{}',
+  learning_strengths text[] not null default '{}',
+  practice_environments text[] not null default '{}',
+  resource_budget text not null default '',
   learning_styles text[] not null default '{}',
-  daily_goal text not null default '',
   content_language text not null default 'en',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -55,10 +58,12 @@ create index if not exists hobbies_user_id_idx on public.hobbies (user_id);
 create index if not exists hobbies_user_active_idx on public.hobbies (user_id, is_active)
   where is_active = true;
 create index if not exists user_plans_updated_at_idx on public.user_plans (updated_at desc);
-create index if not exists user_preferences_selected_tags_idx
-  on public.user_preferences using gin (selected_tags);
 create index if not exists user_preferences_top_goals_idx
   on public.user_preferences using gin (top_goals);
+create index if not exists user_preferences_accessibility_needs_idx
+  on public.user_preferences using gin (accessibility_needs);
+create index if not exists user_preferences_practice_environments_idx
+  on public.user_preferences using gin (practice_environments);
 
 alter table public.users enable row level security;
 alter table public.user_preferences enable row level security;

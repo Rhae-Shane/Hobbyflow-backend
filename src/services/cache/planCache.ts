@@ -7,7 +7,15 @@ type CacheEntry = { plan: Plan; expiresAt: number };
 const cache = new Map<string, CacheEntry>();
 
 export function getCacheKey(input: PlanRequest): string {
-  return [input.hobby, input.level, input.goal ?? '', input.timeBudget].join('|').toLowerCase();
+  return [
+    input.hobby,
+    input.level,
+    input.goal ?? '',
+    input.timeBudget,
+    input.learnerContext ?? '',
+  ]
+    .join('|')
+    .toLowerCase();
 }
 
 export function getCachedPlan(input: PlanRequest): Plan | null {

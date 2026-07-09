@@ -51,12 +51,22 @@ export function buildRoadmapSystemPrompt(hobby: string): string {
 }
 
 export function buildRoadmapUserPrompt(input: PlanRequest): string {
-  return [
+  const lines = [
     `Generate a learning roadmap for ${input.hobby}.`,
     `Current skill level: ${input.level}.`,
     `Goal: ${input.goal || 'general improvement'}.`,
     `Daily time budget: ${input.timeBudget}.`,
-  ].join('\n');
+  ];
+
+  if (input.learnerContext?.trim()) {
+    lines.push(
+      '',
+      'Learner profile — adapt technique choices, modalities, pacing, and search_query to match:',
+      input.learnerContext.trim(),
+    );
+  }
+
+  return lines.join('\n');
 }
 
 export function buildRoadmapPrompt(input: PlanRequest): string {

@@ -9,6 +9,7 @@ export const planRequestSchema = z.object({
   level: levelSchema,
   goal: z.string().trim().optional().default(''),
   timeBudget: timeBudgetSchema,
+  learnerContext: z.string().trim().max(8000).optional(),
 });
 
 export type PlanRequest = z.infer<typeof planRequestSchema>;
