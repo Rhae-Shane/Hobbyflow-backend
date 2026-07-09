@@ -5,6 +5,9 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
   clearMocks: true,
+  moduleNameMapper: {
+    '^nanoid$': '<rootDir>/tests/mocks/nanoid.ts',
+  },
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
