@@ -14,7 +14,10 @@ jest.mock('../src/middleware/auth', () => ({
   ) => {
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Missing or invalid authorization header' });
+      res.status(401).json({
+        error: 'Please sign in to continue',
+        code: 'AUTH_MISSING_HEADER',
+      });
       return;
     }
     req.user = { id: 'test-user' };
@@ -37,10 +40,13 @@ jest.mock('../src/services/provider/geminiProvider', () => ({
 }));
 
 import { plansRouter } from '../src/routes/plans.route';
+import { errorHandler } from '../src/middleware/errorHandler';
 import { clearPlanCache } from '../src/services/cache/planCache';
 import {
   DuplicateTechniqueError,
   generatePlan,
+  InvalidTechniqueIdError,
+  PlannerUnavailableError,
   replaceTechnique,
 } from '../src/services/planner/plannerService';
 import * as plannerService from '../src/services/planner/plannerService';
@@ -49,6 +55,7 @@ function createTestApp() {
   const app = express();
   app.use(express.json());
   app.use('/api/v1/plans', plansRouter);
+  app.use(errorHandler);
   return app;
 }
 
@@ -125,7 +132,26 @@ describe('POST /api/v1/plans', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.field).toBe('hobby');
+    expect(response.body.code).toBe('VALIDATION_ERROR');
     expect(plannerService.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when plan generation is unavailable', async () => {
+    jest.spyOn(plannerService, 'generatePlan').mockRejectedValue(
+      new PlannerUnavailableError(),
+    );
+
+    const response = await request(app)
+      .post('/api/v1/plans')
+      .set('Authorization', 'Bearer test-token')
+      .send({
+        hobby: 'Knitting',
+        level: 'beginner',
+        timeBudget: '30 min/day',
+      });
+
+    expect(response.status).toBe(503);
+    expect(response.body.code).toBe('PLANNER_UNAVAILABLE');
   });
 });
 
@@ -164,6 +190,46 @@ describe('POST /api/v1/plans/replace', () => {
     expect(response.status).toBe(200);
     expect(response.body.technique.name).toBe('Knight forks');
     expect(plannerService.replaceTechnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 409 when replacement duplicates an existing technique', async () => {
+    jest.spyOn(plannerService, 'replaceTechnique').mockRejectedValue(
+      new DuplicateTechniqueError(),
+    );
+
+    const response = await request(app)
+      .post('/api/v1/plans/replace')
+      .set('Authorization', 'Bearer test-token')
+      .send({
+        techniqueId: 't2',
+        hobby: 'Chess',
+        level: 'beginner',
+        goal: 'Learn tactics',
+        remainingTechniques: ['Opening principles'],
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('DUPLICATE_TECHNIQUE');
+  });
+
+  it('returns 400 for an invalid technique id', async () => {
+    jest.spyOn(plannerService, 'replaceTechnique').mockRejectedValue(
+      new InvalidTechniqueIdError(),
+    );
+
+    const response = await request(app)
+      .post('/api/v1/plans/replace')
+      .set('Authorization', 'Bearer test-token')
+      .send({
+        techniqueId: 'bad-id',
+        hobby: 'Chess',
+        level: 'beginner',
+        goal: 'Learn tactics',
+        remainingTechniques: ['Opening principles'],
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('INVALID_TECHNIQUE_ID');
   });
 });
 

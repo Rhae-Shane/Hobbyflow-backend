@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { createChildLogger } from '../lib/logger';
-import { type AuthenticatedRequest, requireAuth } from '../middleware/auth';
+import { toValidationError } from '../lib/validationError';
+import type { AuthenticatedRequest } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import { plansRateLimiter } from '../middleware/rateLimiter';
 import { planRequestSchema } from '../schemas/planRequest.schema';
 import { replaceRequestSchema } from '../schemas/replaceRequest.schema';
 import {
   DuplicateTechniqueError,
   generatePlan,
+  InvalidTechniqueIdError,
   PlannerUnavailableError,
   replaceTechnique,
 } from '../services/planner/plannerService';
@@ -18,16 +21,23 @@ export const plansRouter = Router();
 plansRouter.use(requireAuth);
 plansRouter.use(plansRateLimiter);
 
+function forwardPlannerError(error: unknown, next: (err: unknown) => void) {
+  if (
+    error instanceof PlannerUnavailableError ||
+    error instanceof DuplicateTechniqueError ||
+    error instanceof InvalidTechniqueIdError
+  ) {
+    next(error);
+    return;
+  }
+  next(error);
+}
+
 plansRouter.post('/', async (req: AuthenticatedRequest, res, next) => {
   const parsed = planRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    log.warn({ path: '/api/v1/plans', field: issue?.path.join('.') }, 'Invalid plan request');
-    return res.status(400).json({
-      error: issue?.message ?? 'Invalid request',
-      field: issue?.path.join('.') ?? undefined,
-    });
+    return next(toValidationError(parsed.error));
   }
 
   try {
@@ -38,10 +48,7 @@ plansRouter.post('/', async (req: AuthenticatedRequest, res, next) => {
     );
     return res.status(200).json(plan);
   } catch (error) {
-    if (error instanceof PlannerUnavailableError) {
-      return res.status(503).json({ error: error.message });
-    }
-    return next(error);
+    forwardPlannerError(error, next);
   }
 });
 
@@ -49,15 +56,7 @@ plansRouter.post('/replace', async (req: AuthenticatedRequest, res, next) => {
   const parsed = replaceRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    log.warn(
-      { path: '/api/v1/plans/replace', field: issue?.path.join('.') },
-      'Invalid replace request',
-    );
-    return res.status(400).json({
-      error: issue?.message ?? 'Invalid request',
-      field: issue?.path.join('.') ?? undefined,
-    });
+    return next(toValidationError(parsed.error));
   }
 
   try {
@@ -72,12 +71,6 @@ plansRouter.post('/replace', async (req: AuthenticatedRequest, res, next) => {
     );
     return res.status(200).json(result);
   } catch (error) {
-    if (error instanceof DuplicateTechniqueError) {
-      return res.status(409).json({ error: error.message });
-    }
-    if (error instanceof PlannerUnavailableError) {
-      return res.status(503).json({ error: error.message });
-    }
-    return next(error);
+    forwardPlannerError(error, next);
   }
 });

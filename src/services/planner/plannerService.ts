@@ -1,6 +1,7 @@
 import type { PlanRequest } from '../../schemas/planRequest.schema';
 import type { ReplaceRequest } from '../../schemas/replaceRequest.schema';
 import type { Plan, Technique } from '../../types/plan.types';
+import { AppError, ErrorCodes } from '../../lib/AppError';
 import { createChildLogger } from '../../lib/logger';
 import { getCachedPlan, getCacheKey, setCachedPlan } from '../cache/planCache';
 import { createGeminiProvider } from '../provider/geminiProvider';
@@ -18,17 +19,28 @@ const log = createChildLogger({ module: 'planner' });
 const groqProvider = createGroqProvider();
 const geminiProvider = createGeminiProvider();
 
-export class DuplicateTechniqueError extends Error {
+export class DuplicateTechniqueError extends AppError {
   constructor() {
-    super('Replacement technique duplicates an existing roadmap technique');
+    super(
+      409,
+      ErrorCodes.DUPLICATE_TECHNIQUE,
+      "Couldn't find a unique replacement — keep your current technique",
+    );
     this.name = 'DuplicateTechniqueError';
   }
 }
 
-export class PlannerUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
+export class PlannerUnavailableError extends AppError {
+  constructor(message = 'Plan generation is temporarily unavailable. Please try again.') {
+    super(503, ErrorCodes.PLANNER_UNAVAILABLE, message);
     this.name = 'PlannerUnavailableError';
+  }
+}
+
+export class InvalidTechniqueIdError extends AppError {
+  constructor() {
+    super(400, ErrorCodes.INVALID_TECHNIQUE_ID, 'Invalid technique selected');
+    this.name = 'InvalidTechniqueIdError';
   }
 }
 
@@ -68,7 +80,7 @@ function processSingleTechnique(
 function parseTechniqueOrder(techniqueId: string): number {
   const match = /^t(\d+)$/i.exec(techniqueId.trim());
   if (!match) {
-    throw new Error(`Invalid techniqueId: ${techniqueId}`);
+    throw new InvalidTechniqueIdError();
   }
   return Number.parseInt(match[1], 10);
 }
@@ -88,7 +100,7 @@ export async function generatePlan(input: PlanRequest): Promise<Plan> {
     const fallback = getFallbackPlan(input);
     if (!fallback) {
       throw new PlannerUnavailableError(
-        'Plan generation is temporarily unavailable for this hobby',
+        'Plan generation is temporarily unavailable for this hobby. Try again or use a starter plan.',
       );
     }
     log.warn({ hobby: input.hobby }, 'Serving static fallback plan');
@@ -109,7 +121,9 @@ async function suggestReplacementWithRetry(
   const raw = await callProviders((provider) => provider.suggestReplacement(input));
 
   if (!raw) {
-    throw new PlannerUnavailableError('Technique replacement is temporarily unavailable');
+    throw new PlannerUnavailableError(
+      "Couldn't find a replacement right now. Please try again.",
+    );
   }
 
   const technique = processSingleTechnique(input.hobby, raw, order);
