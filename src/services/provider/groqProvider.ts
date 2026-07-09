@@ -100,7 +100,7 @@ export function createGroqProvider(): AIProvider {
   return {
     async generateRoadmap(input: PlanRequest): Promise<RawPlanResponse> {
       const messages: ChatMessage[] = [
-        { role: 'system', content: buildRoadmapSystemPrompt(input.hobby) },
+        { role: 'system', content: buildRoadmapSystemPrompt(input.hobby, input.learnerContext) },
         { role: 'user', content: buildRoadmapUserPrompt(input) },
       ];
       return callWithJsonRetry(messages, validateRawPlanResponse);

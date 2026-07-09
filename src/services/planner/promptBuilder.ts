@@ -1,5 +1,6 @@
 import type { PlanRequest } from '../../schemas/planRequest.schema';
 import type { ReplaceRequest } from '../../schemas/replaceRequest.schema';
+import { parseAccessibilityConstraints } from './learnerAccessibility';
 import { getAllowedModalities } from './modalityRules';
 
 const ROADMAP_JSON_SHAPE = `{
@@ -27,8 +28,10 @@ const TECHNIQUE_JSON_SHAPE = `{
   "estimated_minutes": 20
 }`;
 
-function buildSystemConstraints(hobby: string): string {
-  const allowedModalities = getAllowedModalities(hobby).join(', ');
+function buildSystemConstraints(hobby: string, learnerContext?: string): string {
+  const allowedModalities = getAllowedModalities(hobby, learnerContext).join(', ');
+  const accessibilityConstraints = parseAccessibilityConstraints(learnerContext);
+  const accessibilityLines = accessibilityConstraints?.promptLines ?? [];
 
   return [
     'You are a learning roadmap planner. Return only valid JSON — no markdown, no commentary.',
@@ -36,6 +39,7 @@ function buildSystemConstraints(hobby: string): string {
     '- Return between 5 and 8 techniques (inclusive).',
     '- Never include URLs in any field. Use search_query only — never invent links.',
     `- Allowed modalities for this hobby: ${allowedModalities}.`,
+    ...accessibilityLines,
     '- No duplicate or near-duplicate techniques in the same roadmap.',
     '- Each technique should build on the previous one — order by dependency, not just importance.',
     '- Prefer practical, applicable skills over pure theory, given the stated goal.',
@@ -43,9 +47,9 @@ function buildSystemConstraints(hobby: string): string {
   ].join('\n');
 }
 
-export function buildRoadmapSystemPrompt(hobby: string): string {
+export function buildRoadmapSystemPrompt(hobby: string, learnerContext?: string): string {
   return [
-    buildSystemConstraints(hobby),
+    buildSystemConstraints(hobby, learnerContext),
     `Return JSON matching this shape exactly:\n${ROADMAP_JSON_SHAPE}`,
   ].join('\n\n');
 }
@@ -70,7 +74,7 @@ export function buildRoadmapUserPrompt(input: PlanRequest): string {
 }
 
 export function buildRoadmapPrompt(input: PlanRequest): string {
-  return `${buildRoadmapSystemPrompt(input.hobby)}\n\n${buildRoadmapUserPrompt(input)}`;
+  return `${buildRoadmapSystemPrompt(input.hobby, input.learnerContext)}\n\n${buildRoadmapUserPrompt(input)}`;
 }
 
 export function buildReplaceSystemPrompt(hobby: string): string {

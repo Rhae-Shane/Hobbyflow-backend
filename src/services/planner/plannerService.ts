@@ -1,6 +1,6 @@
 import type { PlanRequest } from '../../schemas/planRequest.schema';
 import type { ReplaceRequest } from '../../schemas/replaceRequest.schema';
-import type { Plan, Technique } from '../../types/plan.types';
+import type { Plan, Technique, Modality } from '../../types/plan.types';
 import { AppError, ErrorCodes } from '../../lib/AppError';
 import { createChildLogger } from '../../lib/logger';
 import { getCachedPlan, getCacheKey, setCachedPlan } from '../cache/planCache';
@@ -8,6 +8,11 @@ import { createGeminiProvider } from '../provider/geminiProvider';
 import { createGroqProvider } from '../provider/groqProvider';
 import type { AIProvider } from '../provider/aiProvider.interface';
 import { getFallbackPlan } from './fallbackPlans';
+import {
+  buildAccessibilityRetryHint,
+  parseAccessibilityConstraints,
+  rawPlanViolatesAccessibility,
+} from './learnerAccessibility';
 import { applyModalityRules } from './modalityRules';
 import { normalizeTechniques } from './normalizer';
 import { buildPlanResponse } from './planResponseBuilder';
@@ -60,9 +65,17 @@ async function callProviders<T>(
   }
 }
 
-function processTechniques(hobby: string, raw: RawPlanResponse): Technique[] {
+function processTechniques(
+  hobby: string,
+  raw: RawPlanResponse,
+  learnerContext?: string,
+): Technique[] {
   const normalized = normalizeTechniques(raw, hobby);
-  return applyModalityRules(hobby, normalized) as Technique[];
+  return applyModalityRules(
+    hobby,
+    normalized as Array<{ modality: Modality; searchQuery: string } & Omit<Technique, 'modality' | 'searchQuery'>>,
+    learnerContext,
+  ) as Technique[];
 }
 
 function processSingleTechnique(
@@ -73,7 +86,7 @@ function processSingleTechnique(
   const wrapped: RawPlanResponse = {
     techniques: [{ ...raw, order }],
   };
-  const [technique] = processTechniques(hobby, wrapped);
+  const [technique] = processTechniques(hobby, wrapped, undefined);
   return technique;
 }
 
@@ -85,6 +98,42 @@ function parseTechniqueOrder(techniqueId: string): number {
   return Number.parseInt(match[1], 10);
 }
 
+async function generatePlanFromProviders(
+  input: PlanRequest,
+  allowAccessibilityRetry: boolean,
+): Promise<Plan | null> {
+  const raw = await callProviders((provider) => provider.generateRoadmap(input));
+
+  if (!raw) {
+    return null;
+  }
+
+  const accessibilityConstraints = parseAccessibilityConstraints(input.learnerContext);
+
+  if (
+    accessibilityConstraints &&
+    rawPlanViolatesAccessibility(raw.techniques, accessibilityConstraints) &&
+    allowAccessibilityRetry
+  ) {
+    log.warn(
+      { hobby: input.hobby, forbidden: accessibilityConstraints.forbiddenModalities },
+      'Roadmap violated accessibility constraints, retrying once',
+    );
+
+    const retryInput: PlanRequest = {
+      ...input,
+      learnerContext: [input.learnerContext?.trim(), buildAccessibilityRetryHint(accessibilityConstraints)]
+        .filter(Boolean)
+        .join('\n\n'),
+    };
+
+    return generatePlanFromProviders(retryInput, false);
+  }
+
+  const techniques = processTechniques(input.hobby, raw, input.learnerContext);
+  return buildPlanResponse(input, techniques);
+}
+
 export async function generatePlan(input: PlanRequest): Promise<Plan> {
   const cached = getCachedPlan(input);
   if (cached) {
@@ -94,9 +143,9 @@ export async function generatePlan(input: PlanRequest): Promise<Plan> {
 
   log.info({ cacheKey: getCacheKey(input), hobby: input.hobby }, 'Plan cache miss');
 
-  const raw = await callProviders((provider) => provider.generateRoadmap(input));
+  const plan = await generatePlanFromProviders(input, true);
 
-  if (!raw) {
+  if (!plan) {
     const fallback = getFallbackPlan(input);
     if (!fallback) {
       throw new PlannerUnavailableError(
@@ -107,8 +156,6 @@ export async function generatePlan(input: PlanRequest): Promise<Plan> {
     return fallback;
   }
 
-  const techniques = processTechniques(input.hobby, raw);
-  const plan = buildPlanResponse(input, techniques);
   setCachedPlan(input, plan);
   return plan;
 }

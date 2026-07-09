@@ -1,4 +1,4 @@
-import { buildRoadmapUserPrompt } from '../src/services/planner/promptBuilder';
+import { buildRoadmapSystemPrompt, buildRoadmapUserPrompt } from '../src/services/planner/promptBuilder';
 
 describe('buildRoadmapUserPrompt', () => {
   it('includes learner context when provided', () => {
@@ -24,5 +24,18 @@ describe('buildRoadmapUserPrompt', () => {
     });
 
     expect(prompt).not.toContain('Learner profile');
+  });
+});
+
+describe('buildRoadmapSystemPrompt', () => {
+  it('includes accessibility constraints for blind learners', () => {
+    const prompt = buildRoadmapSystemPrompt('Calisthenics', `
+Accessibility and learning needs:
+- Blindness: Prioritize audio, tactile, and descriptive non-visual instructions; avoid visual-only steps.
+`);
+
+    expect(prompt).toContain('Allowed modalities for this hobby: article, audio.');
+    expect(prompt).toContain('never assign video');
+    expect(prompt).toContain('Accessibility needs override preferred content format');
   });
 });
