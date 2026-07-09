@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import { traceLlmCall } from '../../lib/tracing';
 import type { PlanRequest } from '../../schemas/planRequest.schema';
 import type { ReplaceRequest } from '../../schemas/replaceRequest.schema';
 import {
@@ -15,8 +16,9 @@ import {
 } from '../planner/validator';
 import type { AIProvider } from './aiProvider.interface';
 
+const GEMINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const TIMEOUT_MS = 8000;
 
 type ChatMessage = { role: 'system' | 'user'; content: string };
@@ -74,6 +76,12 @@ async function callGemini(messages: ChatMessage[]): Promise<string> {
   }
 }
 
+const tracedCallGemini = traceLlmCall(callGemini, {
+  name: 'gemini_plan_completion',
+  provider: 'google',
+  model: GEMINI_MODEL,
+});
+
 async function callWithJsonRetry<T>(
   messages: ChatMessage[],
   validate: (data: unknown) => T,
@@ -82,7 +90,7 @@ async function callWithJsonRetry<T>(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const content = await callGemini(messages);
+      const content = await tracedCallGemini(messages);
       const data = JSON.parse(content) as unknown;
       return validate(data);
     } catch (error) {

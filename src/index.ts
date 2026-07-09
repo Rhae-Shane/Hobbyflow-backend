@@ -44,11 +44,32 @@ app.use('/api/v1/chat', chatRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
+  const langsmithTracing = process.env.LANGSMITH_TRACING === 'true';
+
   logger.info(
-    { port: env.PORT, nodeEnv: env.NODE_ENV, logLevel: env.LOG_LEVEL },
+    {
+      pid: process.pid,
+      port: env.PORT,
+      nodeEnv: env.NODE_ENV,
+      logLevel: env.LOG_LEVEL,
+      langsmithTracing,
+      langsmithProject: langsmithTracing ? process.env.LANGSMITH_PROJECT : undefined,
+    },
     'HobbyFlow API started',
   );
+});
+
+server.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    logger.fatal(
+      { port: env.PORT, err: error },
+      `Port ${env.PORT} is already in use — run "npm run kill-port" then restart`,
+    );
+  } else {
+    logger.fatal({ err: error }, 'Server failed to start');
+  }
+  process.exit(1);
 });
 
 export default app;

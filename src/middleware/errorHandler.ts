@@ -42,17 +42,19 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const requestId = getRequestId(req as Request);
   const { status, code, message, field } = resolveClientError(err);
 
-  logger.error(
-    {
-      requestId,
-      status,
-      code,
-      err,
-      path: req.path,
-      method: req.method,
-    },
-    'Request error',
-  );
+  const logContext = {
+    requestId,
+    status,
+    code,
+    path: req.path,
+    method: req.method,
+  };
+
+  if (status >= 500) {
+    logger.error({ ...logContext, err }, 'Request error');
+  } else {
+    logger.warn(logContext, message);
+  }
 
   res.status(status).json({
     error: message,

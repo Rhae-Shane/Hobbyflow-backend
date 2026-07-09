@@ -51,6 +51,7 @@ npm run db:push
 | `migrations/20260709160000_profiles_preferences.sql` | Legacy `preferences` JSONB on profiles (superseded) |
 | `migrations/20260709170000_user_preferences_table.sql` | `user_preferences` table; migrates JSONB; drops `profiles.preferences` |
 | `migrations/20260709180000_users_and_hobbies.sql` | Rename `profiles` → `users`; add `hobbies`; `user_plans` per hobby |
+| `migrations/20260710120000_users_completed_onboarding.sql` | `users.completed_onboarding_at` onboarding gate |
 
 Add new migrations with:
 

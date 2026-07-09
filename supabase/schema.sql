@@ -9,9 +9,14 @@ create table if not exists public.users (
   avatar_url text,
   provider text,
   email_verified boolean not null default false,
+  completed_onboarding_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists users_completed_onboarding_at_idx
+  on public.users (completed_onboarding_at)
+  where completed_onboarding_at is not null;
 
 create table if not exists public.user_preferences (
   user_id uuid references public.users on delete cascade primary key,

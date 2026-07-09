@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import { traceLlmCall } from '../../lib/tracing';
 import type { PlanRequest } from '../../schemas/planRequest.schema';
 import type { ReplaceRequest } from '../../schemas/replaceRequest.schema';
 import {
@@ -66,6 +67,12 @@ async function callGroq(messages: ChatMessage[]): Promise<string> {
   }
 }
 
+const tracedCallGroq = traceLlmCall(callGroq, {
+  name: 'groq_plan_completion',
+  provider: 'groq',
+  model: MODEL,
+});
+
 async function callWithJsonRetry<T>(
   messages: ChatMessage[],
   validate: (data: unknown) => T,
@@ -74,7 +81,7 @@ async function callWithJsonRetry<T>(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const content = await callGroq(messages);
+      const content = await tracedCallGroq(messages);
       const data = JSON.parse(content) as unknown;
       return validate(data);
     } catch (error) {
