@@ -22,7 +22,7 @@ export function createGroqChatModel(): BaseChatModel | null {
     temperature: 0.7,
     maxRetries: 1,
     timeout: CHAT_TIMEOUT_MS,
-  });
+  }) as unknown as BaseChatModel;
 }
 
 export function createGeminiChatModel(): BaseChatModel | null {
@@ -35,7 +35,7 @@ export function createGeminiChatModel(): BaseChatModel | null {
     model: GEMINI_MODEL,
     temperature: 0.7,
     maxRetries: 1,
-  });
+  }) as unknown as BaseChatModel;
 }
 
 export async function invokeChatModel(messages: BaseMessage[]) {

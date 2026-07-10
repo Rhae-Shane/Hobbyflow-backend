@@ -35,6 +35,10 @@ jest.mock('../src/services/roadmap/mindmapService', () => ({
   generateOrGetMindMap: (...args: unknown[]) => mockMindMap(...args),
 }));
 
+jest.mock('../src/services/roadmap/lessonGenerationService', () => ({
+  generateLessonContentTraced: jest.fn(),
+}));
+
 import { roadmapsRouter } from '../src/routes/roadmaps.route';
 import { errorHandler } from '../src/middleware/errorHandler';
 

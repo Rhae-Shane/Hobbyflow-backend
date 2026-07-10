@@ -12,6 +12,7 @@
     "test": "jest",
     "test:langsmith": "tsx scripts/test-langsmith.ts",
     "test:roadmap-creation": "tsx scripts/test-roadmap-creation-graph.ts",
+    "test:lesson-generation": "tsx scripts/test-lesson-generation-graph.ts",
     "typecheck": "tsc --noEmit",
     "supabase": "supabase --agent no --output-format text",
     "db:login": "supabase login --agent no --output-format text",

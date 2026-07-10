@@ -4,6 +4,15 @@ const planLevelEnum = ['beginner', 'intermediate', 'advanced'];
 const timeBudgetEnum = ['15 min/day', '30 min/day', '1 hr/day'];
 const modalityEnum = ['video', 'article', 'audio', 'interactive'];
 const techniqueStatusEnum = ['todo', 'in_progress', 'mastered', 'skipped'];
+const chatRoleEnum = ['user', 'assistant', 'system'];
+const roadmapCreationFlowStateEnum = [
+  'collecting-input',
+  'clarifying',
+  'confirming-goal',
+  'reviewing-outline',
+];
+const lessonMediaKindEnum = ['image', 'video', 'audio'];
+const mediaProviderEnum = ['google_images', 'youtube', 'llm_svg', 'upload', 'curated'];
 
 const techniqueSchema = {
   type: 'object',
@@ -29,6 +38,54 @@ const errorSchema = (example: { error: string; code: string; field?: string }) =
   },
 });
 
+const unauthorizedResponse = {
+  description: 'Unauthorized',
+  content: {
+    'application/json': {
+      schema: errorSchema({
+        error: 'Please sign in to continue',
+        code: 'AUTH_MISSING_HEADER',
+      }),
+    },
+  },
+};
+
+const rateLimitedResponse = {
+  description: 'Rate limit exceeded',
+  content: {
+    'application/json': {
+      schema: errorSchema({
+        error: 'Too many requests. Please wait a few minutes and try again.',
+        code: 'RATE_LIMITED',
+      }),
+    },
+  },
+};
+
+const validationErrorResponse = {
+  description: 'Validation error',
+  content: {
+    'application/json': {
+      schema: errorSchema({
+        error: 'Invalid request body',
+        code: 'VALIDATION_ERROR',
+      }),
+    },
+  },
+};
+
+const internalErrorResponse = {
+  description: 'Internal server error',
+  content: {
+    'application/json': {
+      schema: errorSchema({
+        error: 'Something went wrong. Please try again.',
+        code: 'INTERNAL_ERROR',
+      }),
+    },
+  },
+};
+
 const appUserSchema = {
   type: 'object',
   properties: {
@@ -47,6 +104,235 @@ const appUserSchema = {
   },
 };
 
+const chatMessageSchema = {
+  type: 'object',
+  required: ['role', 'content'],
+  properties: {
+    role: { type: 'string', enum: chatRoleEnum, example: 'user' },
+    content: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 8000,
+      example: 'How do I improve my portrait lighting?',
+    },
+  },
+};
+
+const quickReplySchema = {
+  type: 'object',
+  required: ['text'],
+  properties: {
+    text: { type: 'string', minLength: 1, maxLength: 200, example: 'Complete beginner' },
+  },
+};
+
+const lessonPlanLessonSchema = {
+  type: 'object',
+  required: ['name', 'hook', 'meaning'],
+  properties: {
+    name: { type: 'string', example: 'Rule of thirds' },
+    hook: { type: 'string', example: 'Why your photos feel off-center' },
+    meaning: { type: 'string', example: 'Place subjects on grid intersections for balance.' },
+  },
+};
+
+const lessonPlanSectionSchema = {
+  type: 'object',
+  required: ['name', 'lessons'],
+  properties: {
+    name: { type: 'string', example: 'Composition basics' },
+    lessons: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 8,
+      items: lessonPlanLessonSchema,
+    },
+  },
+};
+
+const currentLessonPlanSchema = {
+  type: 'object',
+  required: ['courseTitle', 'sections'],
+  properties: {
+    courseTitle: { type: 'string', example: 'Portrait Photography Foundations' },
+    sections: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 8,
+      items: lessonPlanSectionSchema,
+    },
+    stage: { type: 'string', enum: ['outline'], example: 'outline' },
+    lessonPlanId: { type: 'string', format: 'uuid' },
+    message: { type: 'string' },
+  },
+};
+
+const goalCardSchema = {
+  type: 'object',
+  required: [
+    'suggestedHobby',
+    'suggestedName',
+    'suggestedGoal',
+    'suggestedBackground',
+    'suggestedLevel',
+  ],
+  properties: {
+    suggestedHobby: { type: 'string', example: 'Photography' },
+    suggestedName: { type: 'string', example: 'Portrait Photography Foundations' },
+    suggestedGoal: { type: 'string', example: 'Take better portrait photos' },
+    suggestedBackground: { type: 'string', example: 'Phone camera hobbyist' },
+    suggestedLevel: { type: 'string', enum: planLevelEnum, example: 'beginner' },
+  },
+};
+
+const materializeLessonPlanSchema = {
+  type: 'object',
+  required: ['courseTitle', 'sections', 'stage', 'lessonPlanId'],
+  properties: {
+    courseTitle: { type: 'string', example: 'Portrait Photography Foundations' },
+    sections: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 8,
+      items: lessonPlanSectionSchema,
+    },
+    stage: { type: 'string', enum: ['outline'], example: 'outline' },
+    lessonPlanId: { type: 'string', format: 'uuid' },
+  },
+};
+
+const clarificationResponseSchema = {
+  type: 'object',
+  required: ['type', 'message', 'quickReplies', 'multiSelect', 'flowState'],
+  properties: {
+    type: { type: 'string', enum: ['clarification'] },
+    message: { type: 'string', example: 'What is your current experience level?' },
+    quickReplies: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 6,
+      items: quickReplySchema,
+    },
+    multiSelect: { type: 'boolean', example: false },
+    flowState: {
+      type: 'string',
+      enum: ['collecting-input', 'clarifying'],
+      example: 'clarifying',
+    },
+  },
+};
+
+const goalSuggestionResponseSchema = {
+  type: 'object',
+  required: [
+    'type',
+    'message',
+    'suggestedHobby',
+    'suggestedName',
+    'suggestedGoal',
+    'suggestedBackground',
+    'flowState',
+  ],
+  properties: {
+    type: { type: 'string', enum: ['goal_suggestion'] },
+    message: { type: 'string', example: 'Here is a goal based on what you shared.' },
+    suggestedHobby: { type: 'string', example: 'Photography' },
+    suggestedName: { type: 'string', example: 'Portrait Photography Foundations' },
+    suggestedGoal: { type: 'string', example: 'Take better portrait photos' },
+    suggestedBackground: { type: 'string', example: 'Phone camera hobbyist' },
+    suggestedLevel: { type: 'string', enum: planLevelEnum, example: 'beginner' },
+    flowState: { type: 'string', enum: ['confirming-goal'] },
+  },
+};
+
+const lessonPlanResponseSchema = {
+  type: 'object',
+  required: ['type', 'courseTitle', 'sections', 'stage', 'lessonPlanId', 'flowState'],
+  properties: {
+    type: { type: 'string', enum: ['lesson_plan'] },
+    courseTitle: { type: 'string', example: 'Portrait Photography Foundations' },
+    sections: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 8,
+      items: lessonPlanSectionSchema,
+    },
+    stage: { type: 'string', enum: ['outline'] },
+    lessonPlanId: { type: 'string', format: 'uuid' },
+    message: { type: 'string' },
+    flowState: { type: 'string', enum: ['reviewing-outline'] },
+  },
+};
+
+const mindMapNodeSchema = {
+  type: 'object',
+  required: ['id', 'label', 'lessonNodeIds', 'children'],
+  properties: {
+    id: { type: 'string', example: 'root' },
+    label: { type: 'string', example: 'Portrait Photography' },
+    lessonNodeIds: {
+      type: 'array',
+      items: { type: 'string', format: 'uuid' },
+    },
+    colorIndex: { type: 'integer', minimum: 0, maximum: 8 },
+    children: {
+      type: 'array',
+      items: { $ref: '#/components/schemas/MindMapNode' },
+    },
+  },
+};
+
+const mindMapMetadataSchema = {
+  type: 'object',
+  properties: {
+    version: { type: 'string', example: '1' },
+    createdAt: { type: 'string', format: 'date-time' },
+    language: { type: 'string', example: 'en' },
+    roadmapId: { type: 'string', format: 'uuid' },
+    roadmapTitle: { type: 'string', example: 'Portrait Photography Foundations' },
+    lessonCount: { type: 'integer', minimum: 0 },
+    sectionCount: { type: 'integer', minimum: 0 },
+    practiceCount: { type: 'integer', minimum: 0 },
+    knowledgeCardCount: { type: 'integer', minimum: 0 },
+    sourceFingerprint: { type: 'string' },
+    personalizationEnabled: { type: 'boolean' },
+  },
+};
+
+const roadmapMindMapSchema = {
+  type: 'object',
+  required: ['title', 'root', 'metadata'],
+  properties: {
+    title: { type: 'string', example: 'Portrait Photography Foundations' },
+    root: { $ref: '#/components/schemas/MindMapNode' },
+    metadata: mindMapMetadataSchema,
+  },
+};
+
+const generateLessonResponseSchema = {
+  type: 'object',
+  required: ['status', 'lessonId'],
+  properties: {
+    status: {
+      type: 'string',
+      enum: ['success', 'generating', 'failed'],
+      example: 'success',
+    },
+    message: { type: 'string' },
+    lessonId: { type: 'string', format: 'uuid' },
+    nodeId: { type: 'string', format: 'uuid' },
+    requestGroupId: { type: 'string', format: 'uuid' },
+    generationDurationMs: { type: 'number' },
+    error: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        message: { type: 'string' },
+      },
+    },
+  },
+};
+
 export const openApiDocument = {
   openapi: '3.0.0',
   info: {
@@ -59,6 +345,14 @@ export const openApiDocument = {
       url: `http://localhost:${env.PORT}`,
       description: 'HobbyFlow API server',
     },
+  ],
+  tags: [
+    { name: 'Health' },
+    { name: 'Authentication' },
+    { name: 'Plans' },
+    { name: 'Chat' },
+    { name: 'Roadmap Creation' },
+    { name: 'Roadmaps' },
   ],
   paths: {
     '/health': {
@@ -78,6 +372,23 @@ export const openApiDocument = {
                     service: { type: 'string', example: 'hobbyflow-server' },
                   },
                 },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/openapi.json': {
+      get: {
+        tags: ['Health'],
+        summary: 'OpenAPI document',
+        description: 'Returns this OpenAPI specification as JSON.',
+        responses: {
+          200: {
+            description: 'OpenAPI 3.0 document',
+            content: {
+              'application/json': {
+                schema: { type: 'object' },
               },
             },
           },
@@ -259,28 +570,8 @@ export const openApiDocument = {
               },
             },
           },
-          401: {
-            description: 'Unauthorized',
-            content: {
-              'application/json': {
-                schema: errorSchema({
-                  error: 'Please sign in to continue',
-                  code: 'AUTH_MISSING_HEADER',
-                }),
-              },
-            },
-          },
-          429: {
-            description: 'Rate limit exceeded',
-            content: {
-              'application/json': {
-                schema: errorSchema({
-                  error: 'Too many requests. Please wait a few minutes and try again.',
-                  code: 'RATE_LIMITED',
-                }),
-              },
-            },
-          },
+          401: unauthorizedResponse,
+          429: rateLimitedResponse,
           503: {
             description: 'Planner unavailable',
             content: {
@@ -293,17 +584,7 @@ export const openApiDocument = {
               },
             },
           },
-          500: {
-            description: 'Internal server error',
-            content: {
-              'application/json': {
-                schema: errorSchema({
-                  error: 'Something went wrong. Please try again.',
-                  code: 'INTERNAL_ERROR',
-                }),
-              },
-            },
-          },
+          500: internalErrorResponse,
         },
       },
     },
@@ -374,17 +655,7 @@ export const openApiDocument = {
               },
             },
           },
-          401: {
-            description: 'Unauthorized',
-            content: {
-              'application/json': {
-                schema: errorSchema({
-                  error: 'Your session has expired. Please sign in again.',
-                  code: 'AUTH_INVALID_SESSION',
-                }),
-              },
-            },
-          },
+          401: unauthorizedResponse,
           409: {
             description: 'No unique replacement available',
             content: {
@@ -396,17 +667,7 @@ export const openApiDocument = {
               },
             },
           },
-          429: {
-            description: 'Rate limit exceeded',
-            content: {
-              'application/json': {
-                schema: errorSchema({
-                  error: 'Too many requests. Please wait a few minutes and try again.',
-                  code: 'RATE_LIMITED',
-                }),
-              },
-            },
-          },
+          429: rateLimitedResponse,
           503: {
             description: 'Planner unavailable',
             content: {
@@ -418,14 +679,638 @@ export const openApiDocument = {
               },
             },
           },
-          500: {
-            description: 'Internal server error',
+          500: internalErrorResponse,
+        },
+      },
+    },
+    '/api/v1/chat': {
+      post: {
+        tags: ['Chat'],
+        summary: 'Send a chat message',
+        description:
+          'Invokes the hobby learning chat agent and returns a single assistant reply. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['messages'],
+                properties: {
+                  messages: {
+                    type: 'array',
+                    minItems: 1,
+                    maxItems: 50,
+                    items: chatMessageSchema,
+                  },
+                  hobby: {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 100,
+                    example: 'Photography',
+                  },
+                },
+              },
+              example: {
+                hobby: 'Photography',
+                messages: [
+                  { role: 'user', content: 'How do I improve my portrait lighting?' },
+                ],
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Assistant reply',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: chatMessageSchema,
+                  },
+                },
+              },
+            },
+          },
+          400: validationErrorResponse,
+          401: unauthorizedResponse,
+          429: rateLimitedResponse,
+          503: {
+            description: 'Chat unavailable',
             content: {
               'application/json': {
                 schema: errorSchema({
-                  error: 'Something went wrong. Please try again.',
-                  code: 'INTERNAL_ERROR',
+                  error: 'Chat is temporarily unavailable. Please try again.',
+                  code: 'CHAT_UNAVAILABLE',
                 }),
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/v1/chat/stream': {
+      post: {
+        tags: ['Chat'],
+        summary: 'Stream a chat reply',
+        description:
+          'Streams assistant tokens as Server-Sent Events (`text/event-stream`). Events are JSON payloads with `type: token | done | error`. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['messages'],
+                properties: {
+                  messages: {
+                    type: 'array',
+                    minItems: 1,
+                    maxItems: 50,
+                    items: chatMessageSchema,
+                  },
+                  hobby: {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 100,
+                    example: 'Photography',
+                  },
+                },
+              },
+              example: {
+                hobby: 'Photography',
+                messages: [
+                  { role: 'user', content: 'Explain aperture in simple terms.' },
+                ],
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'SSE stream of chat tokens',
+            content: {
+              'text/event-stream': {
+                schema: {
+                  type: 'string',
+                  example:
+                    'data: {"type":"token","content":"Aperture"}\n\ndata: {"type":"done"}\n\n',
+                },
+              },
+            },
+          },
+          400: validationErrorResponse,
+          401: unauthorizedResponse,
+          429: rateLimitedResponse,
+          503: {
+            description: 'Chat unavailable',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Chat is temporarily unavailable. Please try again.',
+                  code: 'CHAT_UNAVAILABLE',
+                }),
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/v1/roadmap-creation-chat': {
+      post: {
+        tags: ['Roadmap Creation'],
+        summary: 'Roadmap creation chat turn',
+        description:
+          'Runs one turn of the guided roadmap-creation flow. Returns a clarification, goal suggestion, or lesson-plan outline. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['message', 'messages', 'flowState', 'isFirstRoadmap'],
+                properties: {
+                  message: { type: 'string', example: 'I want to learn photography' },
+                  messages: {
+                    type: 'array',
+                    minItems: 1,
+                    items: {
+                      type: 'object',
+                      required: ['role', 'content'],
+                      properties: {
+                        role: { type: 'string', enum: ['user', 'assistant'] },
+                        content: { type: 'string' },
+                      },
+                    },
+                  },
+                  flowState: {
+                    type: 'string',
+                    enum: roadmapCreationFlowStateEnum,
+                    example: 'collecting-input',
+                  },
+                  userRoles: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    default: [],
+                    example: ['student'],
+                  },
+                  isFirstRoadmap: { type: 'boolean', example: true },
+                  intent: {
+                    type: 'string',
+                    enum: ['chat', 'generate_outline'],
+                    default: 'chat',
+                  },
+                  learnerContextSummary: {
+                    type: 'string',
+                    maxLength: 8000,
+                    description: 'Plain-text prefs for personalization',
+                  },
+                  currentLessonPlan: currentLessonPlanSchema,
+                  roadmapName: { type: 'string' },
+                  roadmapGoal: { type: 'string' },
+                  roadmapBackground: { type: 'string' },
+                  conversationId: { type: 'string', format: 'uuid' },
+                },
+              },
+              example: {
+                message: 'I want to learn photography',
+                messages: [{ role: 'user', content: 'I want to learn photography' }],
+                flowState: 'collecting-input',
+                userRoles: [],
+                isFirstRoadmap: true,
+                intent: 'chat',
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Structured roadmap-creation response',
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    clarificationResponseSchema,
+                    goalSuggestionResponseSchema,
+                    lessonPlanResponseSchema,
+                  ],
+                },
+              },
+            },
+          },
+          400: validationErrorResponse,
+          401: unauthorizedResponse,
+          429: rateLimitedResponse,
+          503: {
+            description: 'Roadmap creation chat unavailable',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap creation chat is temporarily unavailable. Please try again.',
+                  code: 'CHAT_UNAVAILABLE',
+                }),
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/v1/roadmaps/materialize': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Materialize a roadmap',
+        description:
+          'Persists a confirmed goal card and lesson-plan outline as a preview roadmap with sections and lessons. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['hobby', 'level', 'goalCard', 'lessonPlan'],
+                properties: {
+                  hobby: { type: 'string', minLength: 1, maxLength: 120, example: 'Photography' },
+                  level: { type: 'string', enum: planLevelEnum, example: 'beginner' },
+                  goalCard: goalCardSchema,
+                  lessonPlan: materializeLessonPlanSchema,
+                  messages: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['role', 'content'],
+                      properties: {
+                        role: { type: 'string', enum: ['user', 'assistant'] },
+                        content: { type: 'string' },
+                      },
+                    },
+                    default: [],
+                  },
+                  userRoles: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    default: [],
+                  },
+                  conversationId: { type: 'string', format: 'uuid' },
+                  learnerContextSummary: { type: 'string', maxLength: 8000 },
+                  isFirstRoadmap: { type: 'boolean', default: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: 'Roadmap created',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: [
+                    'roadmapId',
+                    'hobbyId',
+                    'title',
+                    'intro',
+                    'coverImageUrl',
+                    'sections',
+                    'lessonCount',
+                  ],
+                  properties: {
+                    roadmapId: { type: 'string', format: 'uuid' },
+                    hobbyId: { type: 'string', format: 'uuid' },
+                    title: { type: 'string', example: 'Portrait Photography Foundations' },
+                    intro: {
+                      type: 'object',
+                      properties: {
+                        intro: { type: 'string' },
+                        achievements: { type: 'string' },
+                      },
+                    },
+                    coverImageUrl: { type: 'string', nullable: true },
+                    sections: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string', format: 'uuid' },
+                          name: { type: 'string' },
+                          lessonCount: { type: 'integer', minimum: 0 },
+                        },
+                      },
+                    },
+                    lessonCount: { type: 'integer', minimum: 0 },
+                  },
+                },
+              },
+            },
+          },
+          400: validationErrorResponse,
+          401: unauthorizedResponse,
+          429: rateLimitedResponse,
+          500: internalErrorResponse,
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}': {
+      get: {
+        tags: ['Roadmaps'],
+        summary: 'Get roadmap detail',
+        description:
+          'Returns a roadmap with its nodes and ordered lessons. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Roadmap id',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Roadmap detail',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    roadmap: {
+                      type: 'object',
+                      description: 'Roadmap row from the database',
+                      additionalProperties: true,
+                    },
+                    nodes: {
+                      type: 'array',
+                      description: 'Roadmap nodes (sections and lessons); lesson content is sanitized for clients',
+                      items: { type: 'object', additionalProperties: true },
+                    },
+                    lessons: {
+                      type: 'array',
+                      description: 'Ordered learning-path lesson rows',
+                      items: { type: 'object', additionalProperties: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: 'Missing roadmap id',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap id is required',
+                  code: 'VALIDATION_ERROR',
+                }),
+              },
+            },
+          },
+          401: unauthorizedResponse,
+          404: {
+            description: 'Roadmap not found',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap not found',
+                  code: 'NOT_FOUND',
+                }),
+              },
+            },
+          },
+          429: rateLimitedResponse,
+          500: internalErrorResponse,
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/activate': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Activate a roadmap',
+        description:
+          'Sets the roadmap status to `active`. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Roadmap id',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Roadmap activated',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    hobby_id: { type: 'string', format: 'uuid' },
+                    status: { type: 'string', example: 'active' },
+                  },
+                },
+              },
+            },
+          },
+          400: {
+            description: 'Missing roadmap id',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap id is required',
+                  code: 'VALIDATION_ERROR',
+                }),
+              },
+            },
+          },
+          401: unauthorizedResponse,
+          404: {
+            description: 'Roadmap not found',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap not found',
+                  code: 'NOT_FOUND',
+                }),
+              },
+            },
+          },
+          429: rateLimitedResponse,
+          500: internalErrorResponse,
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/mindmap': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Generate or get mind map',
+        description:
+          'Returns a cached mind map (200) or generates a new one (201). Pass `force: true` to regenerate. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Roadmap id',
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  force: {
+                    type: 'boolean',
+                    description: 'Regenerate even if a cached mind map exists',
+                    example: false,
+                  },
+                },
+              },
+              example: { force: false },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Cached mind map',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    mindMap: roadmapMindMapSchema,
+                  },
+                },
+              },
+            },
+          },
+          201: {
+            description: 'Newly generated mind map',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    mindMap: roadmapMindMapSchema,
+                  },
+                },
+              },
+            },
+          },
+          400: validationErrorResponse,
+          401: unauthorizedResponse,
+          404: {
+            description: 'Roadmap not found',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap not found',
+                  code: 'NOT_FOUND',
+                }),
+              },
+            },
+          },
+          429: rateLimitedResponse,
+          500: internalErrorResponse,
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/lessons/{lessonId}/generate': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Generate lesson content',
+        description:
+          'Generates rich lesson content for a roadmap lesson. Returns 409 while another generation is in progress, or 500 if generation failed. Requires a valid Supabase JWT.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Roadmap id',
+          },
+          {
+            name: 'lessonId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Lesson (roadmap_lessons) id',
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  force: {
+                    type: 'boolean',
+                    default: false,
+                    description: 'Regenerate even if content already exists',
+                  },
+                },
+              },
+              example: { force: false },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Lesson content generated successfully',
+            content: {
+              'application/json': {
+                schema: generateLessonResponseSchema,
+              },
+            },
+          },
+          400: {
+            description: 'Validation error',
+            content: {
+              'application/json': {
+                schema: errorSchema({
+                  error: 'Roadmap id and lesson id are required',
+                  code: 'VALIDATION_ERROR',
+                }),
+              },
+            },
+          },
+          401: unauthorizedResponse,
+          409: {
+            description: 'Generation already in progress',
+            content: {
+              'application/json': {
+                schema: generateLessonResponseSchema,
+              },
+            },
+          },
+          429: rateLimitedResponse,
+          500: {
+            description: 'Generation failed or internal error',
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    generateLessonResponseSchema,
+                    errorSchema({
+                      error: 'Something went wrong. Please try again.',
+                      code: 'INTERNAL_ERROR',
+                    }),
+                  ],
+                },
               },
             },
           },
@@ -460,6 +1345,37 @@ export const openApiDocument = {
             type: 'array',
             items: techniqueSchema,
           },
+        },
+      },
+      ChatMessage: chatMessageSchema,
+      MindMapNode: mindMapNodeSchema,
+      RoadmapMindMap: roadmapMindMapSchema,
+      GenerateLessonResponse: generateLessonResponseSchema,
+      ClarificationResponse: clarificationResponseSchema,
+      GoalSuggestionResponse: goalSuggestionResponseSchema,
+      LessonPlanResponse: lessonPlanResponseSchema,
+      GoalCard: goalCardSchema,
+      MaterializeLessonPlan: materializeLessonPlanSchema,
+      PublicLessonMediaAsset: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          kind: { type: 'string', enum: lessonMediaKindEnum },
+          url: { type: 'string' },
+          storagePath: { type: 'string' },
+          title: { type: 'string' },
+          alt: { type: 'string' },
+          source: {
+            type: 'object',
+            properties: {
+              provider: { type: 'string', enum: mediaProviderEnum },
+              externalId: { type: 'string' },
+              sourceUrl: { type: 'string' },
+              fetchedAt: { type: 'string' },
+            },
+          },
+          durationSeconds: { type: 'number' },
+          thumbnailUrl: { type: 'string' },
         },
       },
     },

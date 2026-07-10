@@ -1,6 +1,10 @@
 import { createChildLogger } from '../../lib/logger';
 import { AppError, ErrorCodes } from '../../lib/AppError';
 import { supabaseAdmin } from '../../lib/supabase';
+import {
+  lessonNodeContentSchema,
+  sanitizeLessonContentForClient,
+} from '../../schemas/lessonContent.schema';
 import type {
   MaterializeRoadmapRequest,
   MaterializeRoadmapResponse,
@@ -300,9 +304,20 @@ export async function getRoadmapDetail(userId: string, roadmapId: string) {
     throw new AppError(500, ErrorCodes.INTERNAL_ERROR, 'Failed to load roadmap lessons');
   }
 
+  const sanitizedNodes = (nodes ?? []).map((node) => {
+    const parsed = lessonNodeContentSchema.safeParse(node.content);
+    if (!parsed.success) {
+      return node;
+    }
+    return {
+      ...node,
+      content: sanitizeLessonContentForClient(parsed.data),
+    };
+  });
+
   return {
     roadmap,
-    nodes: nodes ?? [],
+    nodes: sanitizedNodes,
     lessons: lessons ?? [],
   };
 }

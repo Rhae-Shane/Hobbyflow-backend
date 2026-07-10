@@ -24,4 +24,7 @@ export const env = {
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? '',
   SUPABASE_JWKS_URL: process.env.SUPABASE_JWKS_URL ?? '',
   TAVILY_API_KEY: process.env.TAVILY_API_KEY ?? '',
+  YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY ?? '',
+  GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ?? '',
+  GOOGLE_CSE_ID: process.env.GOOGLE_CSE_ID ?? '',
 } as const;
