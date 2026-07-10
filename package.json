@@ -11,12 +11,13 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:langsmith": "tsx scripts/test-langsmith.ts",
+    "test:roadmap-creation": "tsx scripts/test-roadmap-creation-graph.ts",
     "typecheck": "tsc --noEmit",
-    "supabase": "supabase",
-    "db:login": "supabase login",
-    "db:link": "supabase link",
-    "db:push": "supabase db push",
-    "db:reset": "supabase db reset"
+    "supabase": "supabase --agent no --output-format text",
+    "db:login": "supabase login --agent no --output-format text",
+    "db:link": "supabase link --agent no --output-format text",
+    "db:push": "supabase db push --agent no --output-format text",
+    "db:reset": "supabase db reset --agent no --output-format text"
   },
   "keywords": [
     "hobbyflow"

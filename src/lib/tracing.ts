@@ -25,8 +25,12 @@ export function tracePlannerRun<T extends (...args: never[]) => Promise<unknown>
   fn: T,
   name: string,
 ): T {
-  return traceable(fn, {
-    name,
-    run_type: 'chain',
-  }) as T;
+  return traceable(fn, { name, run_type: 'chain' }) as T;
+}
+
+export function traceRoadmapCreationRun<T extends (...args: never[]) => Promise<unknown>>(
+  fn: T,
+  name = 'roadmap-creation-chat',
+): T {
+  return traceable(fn, { name, run_type: 'chain' }) as T;
 }

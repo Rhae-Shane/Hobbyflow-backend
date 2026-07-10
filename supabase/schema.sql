@@ -10,6 +10,7 @@ create table if not exists public.users (
   provider text,
   email_verified boolean not null default false,
   completed_onboarding_at timestamptz,
+  feature_introductions jsonb not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -65,10 +66,36 @@ create index if not exists user_preferences_accessibility_needs_idx
 create index if not exists user_preferences_practice_environments_idx
   on public.user_preferences using gin (practice_environments);
 
+create table if not exists public.chat_conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  title text not null,
+  messages jsonb not null default '[]'::jsonb,
+  context jsonb not null default '{}'::jsonb,
+  hobby_id uuid references public.hobbies (id) on delete set null,
+  message_count integer not null default 0,
+  last_message_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  archived_at timestamptz,
+  constraint chat_conversations_messages_is_array
+    check (jsonb_typeof(messages) = 'array'),
+  constraint chat_conversations_context_is_object
+    check (jsonb_typeof(context) = 'object')
+);
+
+create index if not exists chat_conversations_user_id_idx
+  on public.chat_conversations (user_id);
+
+create index if not exists chat_conversations_user_workflow_idx
+  on public.chat_conversations (user_id, ((context->>'workflow')))
+  where archived_at is null;
+
 alter table public.users enable row level security;
 alter table public.user_preferences enable row level security;
 alter table public.hobbies enable row level security;
 alter table public.user_plans enable row level security;
+alter table public.chat_conversations enable row level security;
 
 drop policy if exists "users_select_own" on public.users;
 drop policy if exists "users_insert_own" on public.users;
@@ -160,10 +187,27 @@ create policy "user_plans_update_own"
     )
   );
 
+create policy "chat_conversations_select_own"
+  on public.chat_conversations for select
+  using (auth.uid() = user_id);
+
+create policy "chat_conversations_insert_own"
+  on public.chat_conversations for insert
+  with check (auth.uid() = user_id);
+
+create policy "chat_conversations_update_own"
+  on public.chat_conversations for update
+  using (auth.uid() = user_id);
+
+create policy "chat_conversations_delete_own"
+  on public.chat_conversations for delete
+  using (auth.uid() = user_id);
+
 grant select, insert, update on table public.users to authenticated;
 grant select, insert, update on table public.user_preferences to authenticated;
 grant select, insert, update, delete on table public.hobbies to authenticated;
 grant select, insert, update on table public.user_plans to authenticated;
+grant select, insert, update, delete on table public.chat_conversations to authenticated;
 
 create or replace function public.set_updated_at()
 returns trigger

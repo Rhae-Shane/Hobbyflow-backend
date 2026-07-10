@@ -24,8 +24,19 @@ cd hobbyflow-server
 npm install
 npm run db:login
 npm run db:link -- --project-ref <your-project-ref>
+# Add SUPABASE_DB_PASSWORD to .env (Dashboard → Project Settings → Database)
 npm run db:push
 ```
+
+**Troubleshooting**
+
+| Error | Fix |
+|-------|-----|
+| `Cannot prompt for input in JSON output mode` | Run commands in your own terminal (not via an agent). Scripts already pass `--agent no`. |
+| `does not have the necessary privileges` (403) | `npm run db:login` with the Supabase account that owns this project, then re-link. |
+| `SUPABASE_DB_PASSWORD` | Copy the database password from Dashboard → Project Settings → Database into `.env`. |
+
+Non-interactive login (CI / token): `npm run db:login -- --token <access-token>` — create a token at [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens).
 
 ### Option B — SQL Editor
 
