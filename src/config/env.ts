@@ -23,4 +23,5 @@ export const env = {
   SUPABASE_SERVICE_ROLE_KEY:
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? '',
   SUPABASE_JWKS_URL: process.env.SUPABASE_JWKS_URL ?? '',
+  TAVILY_API_KEY: process.env.TAVILY_API_KEY ?? '',
 } as const;

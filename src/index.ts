@@ -12,6 +12,7 @@ import { authRouter } from './routes/auth.route';
 import { chatRouter } from './routes/chat.route';
 import { plansRouter } from './routes/plans.route';
 import { roadmapCreationChatRouter } from './routes/roadmapCreationChat.route';
+import { roadmapsRouter } from './routes/roadmaps.route';
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/plans', plansRouter);
 app.use('/api/v1/chat', chatRouter);
 app.use('/api/v1/roadmap-creation-chat', roadmapCreationChatRouter);
+app.use('/api/v1/roadmaps', roadmapsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

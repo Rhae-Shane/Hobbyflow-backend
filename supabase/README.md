@@ -10,8 +10,12 @@ Database schema and migrations for HobbyFlow auth + plan sync.
 | `user_preferences` | Onboarding choices — one row per user, typed columns + `text[]` for multi-select |
 | `hobbies` | One user → many hobbies (`user_id` FK with `ON DELETE CASCADE`) |
 | `user_plans` | One plan per hobby — plan JSON, onboarding profile, streak |
+| `roadmaps` | Spec 13: structured roadmap from approved outline (intro, cover, status) |
+| `roadmap_nodes` | Spec 13: Section + Lesson nodes |
+| `roadmap_lessons` | Spec 13: ordered learning path (`pending_content` until generated) |
+| `chat_conversations` | Spec 12: creation/coach chat persistence |
 
-The Express API **does not** read or write these tables. The app uses the **anon key** + user session; RLS restricts each user to their own rows. The server only uses the **service role key** for `auth.getUser(token)` JWT verification.
+The Expo app uses the **anon key** + user session for most reads/writes (RLS). The Express API uses the **service role key** for JWT verification and Spec 13 roadmap materialization (`roadmaps` / nodes / lessons).
 
 ## Apply schema
 
