@@ -4,6 +4,7 @@ export const roadmapCreationFlowStateSchema = z.enum([
   'collecting-input',
   'clarifying',
   'confirming-goal',
+  'reviewing-outline',
 ]);
 
 export const chatMessageSchema = z.object({
@@ -34,9 +35,40 @@ export const goalSuggestionResponseSchema = z.object({
   flowState: z.literal('confirming-goal'),
 });
 
+export const lessonPlanLessonSchema = z.object({
+  name: z.string().min(1).max(200),
+  hook: z.string().min(1).max(500),
+  meaning: z.string().min(1).max(500),
+});
+
+export const lessonPlanSectionSchema = z.object({
+  name: z.string().min(1).max(200),
+  lessons: z.array(lessonPlanLessonSchema).min(1).max(8),
+});
+
+export const lessonPlanResponseSchema = z.object({
+  type: z.literal('lesson_plan'),
+  courseTitle: z.string().min(1).max(200),
+  sections: z.array(lessonPlanSectionSchema).min(2).max(8),
+  stage: z.literal('outline'),
+  lessonPlanId: z.string().uuid(),
+  message: z.string().min(1).optional(),
+  flowState: z.literal('reviewing-outline'),
+});
+
+/** Current outline sent back when the user requests changes (prevents hallucination). */
+export const currentLessonPlanSchema = z.object({
+  courseTitle: z.string().min(1).max(200),
+  sections: z.array(lessonPlanSectionSchema).min(2).max(8),
+  stage: z.literal('outline').optional(),
+  lessonPlanId: z.string().uuid().optional(),
+  message: z.string().optional(),
+});
+
 export const roadmapCreationChatResponseSchema = z.discriminatedUnion('type', [
   clarificationResponseSchema,
   goalSuggestionResponseSchema,
+  lessonPlanResponseSchema,
 ]);
 
 export const roadmapCreationChatRequestSchema = z.object({
@@ -45,6 +77,12 @@ export const roadmapCreationChatRequestSchema = z.object({
   flowState: roadmapCreationFlowStateSchema,
   userRoles: z.array(z.string()).default([]),
   isFirstRoadmap: z.boolean(),
+  /** chat = normal turn; generate_outline = build/refine lesson_plan */
+  intent: z.enum(['chat', 'generate_outline']).default('chat'),
+  /** Plain-text prefs (accessibility, environment, budget, etc.) for personalization */
+  learnerContextSummary: z.string().max(8000).optional(),
+  /** Required when refining an existing outline — the AI must edit this, not invent a new one */
+  currentLessonPlan: currentLessonPlanSchema.optional(),
   roadmapName: z.string().optional(),
   roadmapGoal: z.string().optional(),
   roadmapBackground: z.string().optional(),
@@ -53,7 +91,7 @@ export const roadmapCreationChatRequestSchema = z.object({
 
 export const storedChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
-  type: z.enum(['text', 'clarification', 'goal_suggestion']),
+  type: z.enum(['text', 'clarification', 'goal_suggestion', 'lesson_plan']),
   content: z.string(),
   metadata: z
     .object({
@@ -64,6 +102,10 @@ export const storedChatMessageSchema = z.object({
       suggestedGoal: z.string().optional(),
       suggestedBackground: z.string().optional(),
       suggestedLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+      courseTitle: z.string().optional(),
+      sections: z.array(lessonPlanSectionSchema).optional(),
+      stage: z.literal('outline').optional(),
+      lessonPlanId: z.string().uuid().optional(),
     })
     .optional(),
 });
@@ -71,6 +113,8 @@ export const storedChatMessageSchema = z.object({
 export type RoadmapCreationFlowState = z.infer<typeof roadmapCreationFlowStateSchema>;
 export type ClarificationResponse = z.infer<typeof clarificationResponseSchema>;
 export type GoalSuggestionResponse = z.infer<typeof goalSuggestionResponseSchema>;
+export type LessonPlanResponse = z.infer<typeof lessonPlanResponseSchema>;
+export type CurrentLessonPlan = z.infer<typeof currentLessonPlanSchema>;
 export type RoadmapCreationChatResponse = z.infer<typeof roadmapCreationChatResponseSchema>;
 export type RoadmapCreationChatRequest = z.infer<typeof roadmapCreationChatRequestSchema>;
 export type StoredChatMessage = z.infer<typeof storedChatMessageSchema>;

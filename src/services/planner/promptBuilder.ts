@@ -32,6 +32,10 @@ function buildSystemConstraints(hobby: string, learnerContext?: string): string 
   const allowedModalities = getAllowedModalities(hobby, learnerContext).join(', ');
   const accessibilityConstraints = parseAccessibilityConstraints(learnerContext);
   const accessibilityLines = accessibilityConstraints?.promptLines ?? [];
+  const hasApprovedOutline = Boolean(
+    learnerContext?.includes('APPROVED ROADMAP OUTLINE') ||
+      learnerContext?.includes('Approved lesson plan outline'),
+  );
 
   return [
     'You are a learning roadmap planner. Return only valid JSON — no markdown, no commentary.',
@@ -44,6 +48,13 @@ function buildSystemConstraints(hobby: string, learnerContext?: string): string 
     '- Each technique should build on the previous one — order by dependency, not just importance.',
     '- Prefer practical, applicable skills over pure theory, given the stated goal.',
     '- search_query must be a plain search phrase, not a URL.',
+    ...(hasApprovedOutline
+      ? [
+          '- CRITICAL: An approved roadmap outline is provided in learner context. Follow it as the learning path.',
+          '- Map techniques to outline lessons (names/order). Do not invent an unrelated curriculum.',
+          '- Cover the outline progression; if there are more lessons than 8 techniques, merge closely related lessons.',
+        ]
+      : []),
   ].join('\n');
 }
 
@@ -65,7 +76,8 @@ export function buildRoadmapUserPrompt(input: PlanRequest): string {
   if (input.learnerContext?.trim()) {
     lines.push(
       '',
-      'Learner profile — adapt technique choices, modalities, pacing, and search_query to match:',
+      'Learner profile + approved outline — adapt technique choices, modalities, pacing, and search_query to match.',
+      'If an APPROVED ROADMAP OUTLINE is present, that outline IS the learning path: techniques must follow it.',
       input.learnerContext.trim(),
     );
   }

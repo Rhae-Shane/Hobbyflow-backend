@@ -65,12 +65,17 @@ async function invokeGraphInner(
     'Roadmap creation turn completed',
   );
 
+  const structured = result.structuredResponse;
+  const flowState =
+    structured.type === 'goal_suggestion'
+      ? ('confirming-goal' as const)
+      : structured.type === 'lesson_plan'
+        ? ('reviewing-outline' as const)
+        : structured.flowState;
+
   return {
-    ...result.structuredResponse,
-    flowState:
-      result.structuredResponse.type === 'goal_suggestion'
-        ? ('confirming-goal' as const)
-        : result.structuredResponse.flowState,
+    ...structured,
+    flowState,
   };
 }
 
@@ -88,7 +93,7 @@ export async function invokeRoadmapCreationChatSafe(
   } catch (error) {
     log.error({ err: error, userId: config.userId }, 'Roadmap creation chat failed');
 
-    if (input.flowState === 'confirming-goal') {
+    if (input.flowState === 'confirming-goal' || input.intent === 'generate_outline') {
       throw new RoadmapCreationUnavailableError();
     }
 

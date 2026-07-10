@@ -1,7 +1,9 @@
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import {
   clarificationResponseSchema,
   goalSuggestionResponseSchema,
+  lessonPlanResponseSchema,
   type RoadmapCreationChatResponse,
 } from '../../schemas/roadmapCreationChat.schema';
 
@@ -42,6 +44,16 @@ export function parseRoadmapCreationResponse(raw: string): RoadmapCreationChatRe
 
   if (typeResult.data.type === 'goal_suggestion') {
     return goalSuggestionResponseSchema.parse(parsed);
+  }
+
+  if (typeResult.data.type === 'lesson_plan') {
+    const base = typeof parsed === 'object' && parsed !== null ? parsed : {};
+    return lessonPlanResponseSchema.parse({
+      ...base,
+      lessonPlanId: randomUUID(),
+      flowState: 'reviewing-outline',
+      stage: 'outline',
+    });
   }
 
   throw new Error(`Unknown response type: ${typeResult.data.type}`);

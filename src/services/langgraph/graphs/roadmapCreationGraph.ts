@@ -3,6 +3,7 @@ import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import {
   MAX_CLARIFICATION_ROUNDS,
   MIN_CLARIFICATION_ROUNDS,
+  type CurrentLessonPlan,
   type RoadmapCreationChatRequest,
   type RoadmapCreationChatResponse,
   type RoadmapCreationFlowState,
@@ -11,6 +12,7 @@ import { invokeChatModel } from '../llm';
 import { toLangChainMessages } from '../messageMapper';
 import {
   buildClarificationUserPrompt,
+  buildLessonPlanOutlinePrompt,
   buildRefineGoalPrompt,
   buildRoadmapCreationSystemPrompt,
   buildSynthesizeGoalPrompt,
@@ -47,6 +49,10 @@ export const RoadmapCreationState = Annotation.Root({
     reducer: (_, right) => right,
     default: () => '',
   }),
+  intent: Annotation<'chat' | 'generate_outline'>({
+    reducer: (_, right) => right,
+    default: () => 'chat',
+  }),
   roadmapName: Annotation<string | undefined>({
     reducer: (_, right) => right,
     default: () => undefined,
@@ -58,6 +64,10 @@ export const RoadmapCreationState = Annotation.Root({
   roadmapBackground: Annotation<string | undefined>({
     reducer: (_, right) => right,
     default: () => undefined,
+  }),
+  currentLessonPlan: Annotation<CurrentLessonPlan | null>({
+    reducer: (_, right) => right,
+    default: () => null,
   }),
   structuredResponse: Annotation<RoadmapCreationChatResponse | null>({
     reducer: (_, right) => right,
@@ -87,7 +97,13 @@ function countAnswersFromConversation(
   return Math.max(0, userCount - 1);
 }
 
-function resolveTurnKind(state: typeof RoadmapCreationState.State): 'clarify' | 'synthesize' | 'refine' {
+function resolveTurnKind(
+  state: typeof RoadmapCreationState.State,
+): 'clarify' | 'synthesize' | 'refine' | 'outline' {
+  if (state.intent === 'generate_outline' || state.flowState === 'reviewing-outline') {
+    return 'outline';
+  }
+
   if (state.flowState === 'confirming-goal') {
     return 'refine';
   }
@@ -121,6 +137,7 @@ function promptContextFromState(
     roadmapName: state.roadmapName,
     roadmapGoal: state.roadmapGoal,
     roadmapBackground: state.roadmapBackground,
+    currentLessonPlan: state.currentLessonPlan,
   };
 }
 
@@ -133,6 +150,9 @@ function buildTurnInstruction(
   let instruction: string;
 
   switch (turnKind) {
+    case 'outline':
+      instruction = buildLessonPlanOutlinePrompt(ctx);
+      break;
     case 'refine':
       instruction = buildRefineGoalPrompt(ctx);
       break;
@@ -196,14 +216,21 @@ async function finalizeResponse(state: typeof RoadmapCreationState.State) {
   if (structured.type === 'clarification') {
     nextFlowState = 'clarifying';
     clarificationRound = state.clarificationRound + 1;
+  } else if (structured.type === 'lesson_plan') {
+    nextFlowState = 'reviewing-outline';
   } else {
     nextFlowState = 'confirming-goal';
   }
 
+  const assistantText =
+    structured.type === 'lesson_plan'
+      ? structured.message ?? `Here's your outline for ${structured.courseTitle}.`
+      : structured.message;
+
   return {
     flowState: nextFlowState,
     clarificationRound,
-    conversationMessages: [new AIMessage(structured.message)],
+    conversationMessages: [new AIMessage(assistantText)],
   };
 }
 
@@ -242,9 +269,11 @@ export function initialStateFromRequest(
     userRoles: input.userRoles,
     isFirstRoadmap: input.isFirstRoadmap,
     learnerContextSummary: input.learnerContextSummary ?? '',
+    intent: input.intent ?? 'chat',
     roadmapName: input.roadmapName,
     roadmapGoal: input.roadmapGoal,
     roadmapBackground: input.roadmapBackground,
+    currentLessonPlan: input.currentLessonPlan ?? null,
     structuredResponse: null,
     parseAttempt: 0,
     rawContent: '',
