@@ -18,6 +18,9 @@ import { roadmapsRouter } from './routes/roadmaps.route';
 
 const app = express();
 
+// Behind nginx/Caddy — required so express-rate-limit trusts X-Forwarded-For
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(requestLogger);
 app.use(express.json());
