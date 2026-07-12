@@ -456,28 +456,23 @@ export async function listMyDailyTasks(userId: string, limit = 14) {
 }
 
 export async function getMyPact(userId: string, localDate?: string) {
-  const [{ data: active }, gamification] = await Promise.all([
+  const [{ data: actives }, gamification] = await Promise.all([
     supabaseAdmin
       .from('user_pacts')
       .select('id, promise_text, start_date, end_date, status, hobbies(name)')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .maybeSingle(),
+      .order('end_date', { ascending: true }),
     getMyGamification(userId),
   ]);
 
   const pactsFulfilled =
     'pactsFulfilled' in gamification ? gamification.pactsFulfilled : 0;
 
-  if (!active) {
-    return { active: null, pactsFulfilled };
-  }
-
-  const hobby = active.hobbies as { name?: string } | { name?: string }[] | null;
-  const hobbyName = Array.isArray(hobby) ? hobby[0]?.name : hobby?.name;
-
-  return {
-    active: {
+  const activeList = (actives ?? []).map((active) => {
+    const hobby = active.hobbies as { name?: string } | { name?: string }[] | null;
+    const hobbyName = Array.isArray(hobby) ? hobby[0]?.name : hobby?.name;
+    return {
       id: active.id,
       hobbyName: hobbyName ?? null,
       promise: truncate(active.promise_text, 200),
@@ -485,7 +480,14 @@ export async function getMyPact(userId: string, localDate?: string) {
       endDate: active.end_date,
       daysRemaining: daysRemaining(active.end_date, localDate),
       status: 'active' as const,
-    },
+    };
+  });
+
+  return {
+    /** @deprecated Prefer `actives` — first/nearest active pact for older prompts. */
+    active: activeList[0] ?? null,
+    actives: activeList,
+    activeCount: activeList.length,
     pactsFulfilled,
   };
 }

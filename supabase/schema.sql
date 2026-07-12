@@ -549,10 +549,6 @@ create table if not exists public.user_pacts (
   )
 );
 
-create unique index if not exists user_pacts_one_active_per_user
-  on public.user_pacts (user_id)
-  where status = 'active';
-
 create index if not exists user_pacts_user_created_idx
   on public.user_pacts (user_id, created_at desc);
 

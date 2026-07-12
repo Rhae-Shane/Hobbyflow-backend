@@ -131,7 +131,8 @@ export function createAskAnythingTools(options: AskAnythingToolsContext) {
 
   const getMyPact = new DynamicStructuredTool({
     name: 'get_my_pact',
-    description: 'Get the active pact (if any) and pacts fulfilled count.',
+    description:
+      'Get all active pacts (user may have more than one), nearest deadline first, plus pacts fulfilled count.',
     schema: z.object({}),
     func: async () => toJson(await ctx.getMyPact(userId, localDate)),
   });

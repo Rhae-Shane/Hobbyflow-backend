@@ -46,7 +46,12 @@ jest.mock('../src/services/ask/userContextService', () => ({
   getLeagueTable: jest.fn(async () => ({ leagues: [] })),
   getMyDailyTask: jest.fn(async () => ({ task: null })),
   listMyDailyTasks: jest.fn(async () => ({ tasks: [] })),
-  getMyPact: jest.fn(async () => ({ active: null, pactsFulfilled: 0 })),
+  getMyPact: jest.fn(async () => ({
+    active: null,
+    actives: [],
+    activeCount: 0,
+    pactsFulfilled: 0,
+  })),
   listMyPacts: jest.fn(async () => ({ pacts: [] })),
   getMySocialLinks: jest.fn(async () => ({ links: [] })),
   listMyRecentPosts: jest.fn(async () => ({ posts: [] })),
