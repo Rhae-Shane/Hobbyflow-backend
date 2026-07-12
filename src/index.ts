@@ -12,6 +12,7 @@ import { askAnythingRouter } from './routes/askAnything.route';
 import { authRouter } from './routes/auth.route';
 import { chatRouter } from './routes/chat.route';
 import { dailyTasksRouter } from './routes/dailyTasks.route';
+import { leaderboardRouter } from './routes/leaderboard.route';
 import { plansRouter } from './routes/plans.route';
 import { roadmapCreationChatRouter } from './routes/roadmapCreationChat.route';
 import { roadmapsRouter } from './routes/roadmaps.route';
@@ -76,6 +77,7 @@ app.use('/api/v1/chat', chatRouter);
 app.use('/api/v1/roadmap-creation-chat', roadmapCreationChatRouter);
 app.use('/api/v1/ask-anything', askAnythingRouter);
 app.use('/api/v1/daily-tasks', dailyTasksRouter);
+app.use('/api/v1/leaderboard', leaderboardRouter);
 app.use('/api/v1/roadmaps', roadmapsRouter);
 
 app.use(notFoundHandler);
