@@ -11,11 +11,26 @@ function resolveLogLevel(): LogLevel {
   return (process.env.NODE_ENV ?? 'development') === 'production' ? 'info' : 'debug';
 }
 
+/** Primary key plus optional comma/newline-separated extras (rate-limit failover). */
+function resolveGroqApiKeys(): string[] {
+  const fromList = (process.env.GROQ_API_KEYS ?? '')
+    .split(/[,\n]/)
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const primary = (process.env.GROQ_API_KEY ?? '').trim();
+  const keys = [...(primary ? [primary] : []), ...fromList];
+  return [...new Set(keys)];
+}
+
+const groqApiKeys = resolveGroqApiKeys();
+
 export const env = {
   PORT: Number(process.env.PORT ?? 3000),
   NODE_ENV: process.env.NODE_ENV ?? 'development',
   LOG_LEVEL: resolveLogLevel(),
-  GROQ_API_KEY: process.env.GROQ_API_KEY ?? '',
+  /** @deprecated Prefer GROQ_API_KEYS; kept for single-key setups */
+  GROQ_API_KEY: groqApiKeys[0] ?? '',
+  GROQ_API_KEYS: groqApiKeys,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
   PLAN_CACHE_TTL_MS: Number(process.env.PLAN_CACHE_TTL_MS ?? 86_400_000),
   SUPABASE_URL: process.env.SUPABASE_URL ?? '',

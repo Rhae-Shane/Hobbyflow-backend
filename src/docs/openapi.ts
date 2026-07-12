@@ -8,6 +8,7 @@ const chatRoleEnum = ['user', 'assistant', 'system'];
 const roadmapCreationFlowStateEnum = [
   'collecting-input',
   'clarifying',
+  'selecting-tags',
   'confirming-goal',
   'reviewing-outline',
 ];
@@ -216,7 +217,7 @@ const clarificationResponseSchema = {
     multiSelect: { type: 'boolean', example: false },
     flowState: {
       type: 'string',
-      enum: ['collecting-input', 'clarifying'],
+      enum: ['collecting-input', 'clarifying', 'selecting-tags'],
       example: 'clarifying',
     },
   },

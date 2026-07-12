@@ -9,6 +9,7 @@ import type {
   MaterializeRoadmapRequest,
   MaterializeRoadmapResponse,
 } from '../../schemas/roadmapMaterialize.schema';
+import { mergeAndSaveUserHobbyTags } from '../hobbyCatalog/userHobbyTagsService';
 import { generateRoadmapPreviewCopy } from './previewCopyService';
 
 const log = createChildLogger({ module: 'roadmap-materialize' });
@@ -113,6 +114,23 @@ export async function materializeRoadmap(
     level: input.level,
     goal: input.goalCard.suggestedGoal,
   });
+
+  const tagsToMerge =
+    input.goalCard.suggestedTags.length > 0
+      ? input.goalCard.suggestedTags
+      : [
+          {
+            hobbyId: null as number | null,
+            name: hobbyName,
+            source: 'custom' as const,
+          },
+        ];
+
+  try {
+    await mergeAndSaveUserHobbyTags(userId, tagsToMerge);
+  } catch (err) {
+    log.warn({ err, userId }, 'Failed to merge hobby tags (continuing materialize)');
+  }
 
   const preview = await generateRoadmapPreviewCopy({
     title: input.lessonPlan.courseTitle,

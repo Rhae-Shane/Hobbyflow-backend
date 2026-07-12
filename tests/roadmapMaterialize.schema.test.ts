@@ -11,6 +11,7 @@ describe('roadmapMaterialize.schema', () => {
         suggestedGoal: 'Play along to songs',
         suggestedBackground: 'Beginner',
         suggestedLevel: 'beginner',
+        suggestedTags: [{ hobbyId: 280, name: 'Drums', source: 'catalog' }],
       },
       lessonPlan: {
         courseTitle: 'Drumming Foundations',

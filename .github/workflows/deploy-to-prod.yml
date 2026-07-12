@@ -1,0 +1,49 @@
+name: deploy-to-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit SHA or branch name to deploy'
+        required: true
+        default: 'main'
+
+jobs:
+  deploy:
+    runs-on: prod
+
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit }}
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Setup .env
+        env:
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+        run: |
+          if [ -z "$PROD_ENV" ]; then
+            echo "PROD_ENV secret is empty — add it in GitHub → Settings → Secrets"
+            exit 1
+          fi
+          printf '%s\n' "$PROD_ENV" > .env
+          chmod 600 .env
+          echo "Updated .env successfully"
+
+      - name: Run ./1_build.sh
+        run: |
+          chmod +x ./1_build.sh ./2_start.sh
+          ./1_build.sh
+
+      - name: Run ./2_start.sh
+        run: ./2_start.sh

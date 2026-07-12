@@ -14,8 +14,11 @@ Database schema and migrations for HobbyFlow auth + plan sync.
 | `roadmap_nodes` | Spec 13: Section + Lesson nodes |
 | `roadmap_lessons` | Spec 13: ordered learning path (`pending_content` until generated) |
 | `chat_conversations` | Spec 12: creation/coach chat persistence |
+| `admins` | Privileged users (`user_id` → `users.id`); paste IDs via Dashboard |
 
 The Expo app uses the **anon key** + user session for most reads/writes (RLS). The Express API uses the **service role key** for JWT verification and Spec 13 roadmap materialization (`roadmaps` / nodes / lessons).
+
+**Admins:** Insert a row into `public.admins` with a `user_id` from `public.users` (Table Editor or SQL). That user then passes RLS policy `ADMIN_can_do_all_ops` on every public table via `public.is_admin()`. First admin must be added in the Dashboard (bypasses RLS).
 
 ## Apply schema
 
@@ -78,5 +81,6 @@ supabase migration new <description>
 
 - Users can **select / insert / update** only their own `users`, `user_preferences`, `hobbies`, and `user_plans` rows.
 - Deleting a user (via `auth.users`) cascades to `users` → `hobbies` → `user_plans`.
-- No **delete** policies — plan clearing is local-only; rows persist for cross-device sync.
+- No **delete** policies for normal users — plan clearing is local-only; rows persist for cross-device sync.
+- **Admins** (`public.admins`): `ADMIN_can_do_all_ops` + `public.is_admin()` allow full CRUD on all public tables for listed `user_id`s.
 - `service_role` bypasses RLS (server JWT verification only; never ship to the client).

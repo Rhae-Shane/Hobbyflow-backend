@@ -34,6 +34,10 @@ describe('roadmapCreationChat.schema', () => {
     suggestedBackground:
       'Complete beginner with no prior guitar experience, interested in songwriting and home recording.',
     suggestedLevel: 'beginner' as const,
+    suggestedTags: [
+      { hobbyId: 261, name: 'Guitar', source: 'catalog' as const },
+      { hobbyId: null, name: 'Home recording', source: 'custom' as const },
+    ],
     flowState: 'confirming-goal' as const,
   };
 
@@ -47,6 +51,31 @@ describe('roadmapCreationChat.schema', () => {
     const result = goalSuggestionResponseSchema.parse(guitarGoalSuggestion);
     expect(result.suggestedHobby).toBe('Guitar');
     expect(result.suggestedLevel).toBe('beginner');
+    expect(result.suggestedTags).toHaveLength(2);
+  });
+
+  it('defaults suggestedTags to empty array when omitted', () => {
+    const { suggestedTags: _, ...withoutTags } = guitarGoalSuggestion;
+    const result = goalSuggestionResponseSchema.parse(withoutTags);
+    expect(result.suggestedTags).toEqual([]);
+  });
+
+  it('rejects catalog tag with null hobbyId on goal_suggestion', () => {
+    expect(() =>
+      goalSuggestionResponseSchema.parse({
+        ...guitarGoalSuggestion,
+        suggestedTags: [{ hobbyId: null, name: 'Guitar', source: 'catalog' }],
+      }),
+    ).toThrow();
+  });
+
+  it('rejects custom tag with non-null hobbyId on goal_suggestion', () => {
+    expect(() =>
+      goalSuggestionResponseSchema.parse({
+        ...guitarGoalSuggestion,
+        suggestedTags: [{ hobbyId: 1, name: 'Weird', source: 'custom' }],
+      }),
+    ).toThrow();
   });
 
   it('parses discriminated union for both response types', () => {

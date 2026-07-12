@@ -1,11 +1,24 @@
 import { z } from 'zod';
+import { hobbyTagSchema, hobbyTagsArraySchema } from './hobbyTags.schema';
+
+export { hobbyTagSchema, hobbyTagsArraySchema };
+export type { HobbyTag } from './hobbyTags.schema';
 
 export const roadmapCreationFlowStateSchema = z.enum([
   'collecting-input',
   'clarifying',
+  'selecting-tags',
   'confirming-goal',
   'reviewing-outline',
 ]);
+
+/** Always offered on the final catalog tag-confirm turn. */
+export const NO_TAGS_MATCHING_CHIP = 'No tags matching';
+
+/** Opens mailto from the tag-confirm chips (catalog feedback). */
+export const EMAIL_HOBBY_CATALOG_CHIP = 'Email us to add my hobby';
+
+export const HOBBY_CATALOG_FEEDBACK_EMAIL = 'omeshkumar981349978@gmail.com';
 
 export const chatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -21,7 +34,7 @@ export const clarificationResponseSchema = z.object({
   message: z.string().min(1),
   quickReplies: z.array(quickReplySchema).min(2).max(6),
   multiSelect: z.boolean(),
-  flowState: z.enum(['collecting-input', 'clarifying']),
+  flowState: z.enum(['collecting-input', 'clarifying', 'selecting-tags']),
 });
 
 export const goalSuggestionResponseSchema = z.object({
@@ -32,6 +45,7 @@ export const goalSuggestionResponseSchema = z.object({
   suggestedGoal: z.string().min(1).max(2000),
   suggestedBackground: z.string().min(1).max(2000),
   suggestedLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  suggestedTags: hobbyTagsArraySchema.default([]),
   flowState: z.literal('confirming-goal'),
 });
 
@@ -86,6 +100,8 @@ export const roadmapCreationChatRequestSchema = z.object({
   roadmapName: z.string().optional(),
   roadmapGoal: z.string().optional(),
   roadmapBackground: z.string().optional(),
+  /** Current profile tags on the goal card (preserve across refine turns) */
+  suggestedTags: hobbyTagsArraySchema.optional(),
   conversationId: z.string().uuid().optional(),
 });
 
@@ -102,6 +118,7 @@ export const storedChatMessageSchema = z.object({
       suggestedGoal: z.string().optional(),
       suggestedBackground: z.string().optional(),
       suggestedLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+      suggestedTags: hobbyTagsArraySchema.optional(),
       courseTitle: z.string().optional(),
       sections: z.array(lessonPlanSectionSchema).optional(),
       stage: z.literal('outline').optional(),
@@ -119,9 +136,14 @@ export type RoadmapCreationChatResponse = z.infer<typeof roadmapCreationChatResp
 export type RoadmapCreationChatRequest = z.infer<typeof roadmapCreationChatRequestSchema>;
 export type StoredChatMessage = z.infer<typeof storedChatMessageSchema>;
 
-/** Target 4 MCQ rounds; hard cap at 5 before goal_suggestion is required. */
+/** Target 4 MCQ rounds; hard cap at 5 before tag confirm is required. */
 export const MIN_CLARIFICATION_ROUNDS = 4;
 export const MAX_CLARIFICATION_ROUNDS = 5;
+/**
+ * One extra clarification for the required catalog tag-confirm turn
+ * (select matching tags / no tags matching) before goal_suggestion.
+ */
+export const MAX_TAG_CLARIFICATION_ROUNDS = MAX_CLARIFICATION_ROUNDS + 1;
 
 /**
  * Format multi-select MCQ answer: chips prefixed with "- ", free text appended.

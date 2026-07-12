@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hobbyTagsArraySchema } from './hobbyTags.schema';
 
 export const goalCardSchema = z.object({
   suggestedHobby: z.string().min(1).max(120),
@@ -6,6 +7,7 @@ export const goalCardSchema = z.object({
   suggestedGoal: z.string().min(1).max(2000),
   suggestedBackground: z.string().min(1).max(2000),
   suggestedLevel: z.enum(['beginner', 'intermediate', 'advanced']),
+  suggestedTags: hobbyTagsArraySchema.default([]),
 });
 
 export const lessonPlanLessonSchema = z.object({

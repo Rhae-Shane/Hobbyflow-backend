@@ -2,13 +2,15 @@ import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import {
   MAX_CLARIFICATION_ROUNDS,
+  MAX_TAG_CLARIFICATION_ROUNDS,
   MIN_CLARIFICATION_ROUNDS,
   type CurrentLessonPlan,
+  type HobbyTag,
   type RoadmapCreationChatRequest,
   type RoadmapCreationChatResponse,
   type RoadmapCreationFlowState,
 } from '../../../schemas/roadmapCreationChat.schema';
-import { invokeChatModel } from '../llm';
+import { invokeChatModel, invokeChatModelWithTools } from '../llm';
 import { toLangChainMessages } from '../messageMapper';
 import {
   buildClarificationUserPrompt,
@@ -16,9 +18,11 @@ import {
   buildRefineGoalPrompt,
   buildRoadmapCreationSystemPrompt,
   buildSynthesizeGoalPrompt,
+  buildTagConfirmPrompt,
   type RoadmapCreationPromptContext,
 } from '../prompts/roadmapCreationPrompts';
 import { parseRoadmapCreationResponse } from '../responseParser';
+import { hobbyCatalogTools } from '../tools/hobbyCatalogTools';
 
 export type RoadmapCreationGraphInput = RoadmapCreationChatRequest & {
   learnerContextSummary?: string;
@@ -65,6 +69,10 @@ export const RoadmapCreationState = Annotation.Root({
     reducer: (_, right) => right,
     default: () => undefined,
   }),
+  suggestedTags: Annotation<HobbyTag[]>({
+    reducer: (_, right) => right,
+    default: () => [],
+  }),
   currentLessonPlan: Annotation<CurrentLessonPlan | null>({
     reducer: (_, right) => right,
     default: () => null,
@@ -99,7 +107,7 @@ function countAnswersFromConversation(
 
 function resolveTurnKind(
   state: typeof RoadmapCreationState.State,
-): 'clarify' | 'synthesize' | 'refine' | 'outline' {
+): 'clarify' | 'tag_confirm' | 'synthesize' | 'refine' | 'outline' {
   if (state.intent === 'generate_outline' || state.flowState === 'reviewing-outline') {
     return 'outline';
   }
@@ -108,19 +116,30 @@ function resolveTurnKind(
     return 'refine';
   }
 
+  // User already saw matching tags — build the goal card from their selection
+  if (state.flowState === 'selecting-tags') {
+    return 'synthesize';
+  }
+
   const answerCount = countAnswersFromConversation(state.conversationMessages);
   const assistantCount = state.conversationMessages.filter(
     (m) => m.getType() === 'ai',
   ).length;
 
-  // Hard cap: never ask more than MAX clarification questions
-  if (answerCount >= MAX_CLARIFICATION_ROUNDS || assistantCount >= MAX_CLARIFICATION_ROUNDS) {
+  // Past tag budget: force goal synthesis (safety net)
+  if (
+    answerCount >= MAX_TAG_CLARIFICATION_ROUNDS ||
+    assistantCount >= MAX_TAG_CLARIFICATION_ROUNDS
+  ) {
     return 'synthesize';
   }
 
-  // Default: after MIN user answers (4), produce goal_suggestion (Inspo guitar flow)
-  if (answerCount >= MIN_CLARIFICATION_ROUNDS) {
-    return 'synthesize';
+  // After enough MCQs (or at hard MCQ cap), always ask tag confirm first
+  if (
+    answerCount >= MIN_CLARIFICATION_ROUNDS ||
+    assistantCount >= MAX_CLARIFICATION_ROUNDS
+  ) {
+    return 'tag_confirm';
   }
 
   return 'clarify';
@@ -129,6 +148,7 @@ function resolveTurnKind(
 function promptContextFromState(
   state: typeof RoadmapCreationState.State,
 ): RoadmapCreationPromptContext {
+  const turnKind = resolveTurnKind(state);
   return {
     userRoles: state.userRoles,
     isFirstRoadmap: state.isFirstRoadmap,
@@ -137,7 +157,9 @@ function promptContextFromState(
     roadmapName: state.roadmapName,
     roadmapGoal: state.roadmapGoal,
     roadmapBackground: state.roadmapBackground,
+    suggestedTags: state.suggestedTags,
     currentLessonPlan: state.currentLessonPlan,
+    useCatalogTools: turnKind === 'tag_confirm' || turnKind === 'synthesize',
   };
 }
 
@@ -155,6 +177,9 @@ function buildTurnInstruction(
       break;
     case 'refine':
       instruction = buildRefineGoalPrompt(ctx);
+      break;
+    case 'tag_confirm':
+      instruction = buildTagConfirmPrompt();
       break;
     case 'synthesize':
       instruction = buildSynthesizeGoalPrompt();
@@ -178,16 +203,84 @@ function buildLlmMessages(state: typeof RoadmapCreationState.State, strictJson =
   return [system, ...state.conversationMessages, instruction];
 }
 
+function messageContentToString(content: unknown): string {
+  if (typeof content === 'string') return content;
+  return String(content ?? '');
+}
+
 async function callLlm(state: typeof RoadmapCreationState.State) {
-  const response = await invokeChatModel(buildLlmMessages(state));
-  const content =
-    typeof response.content === 'string' ? response.content : String(response.content ?? '');
-  return { rawContent: content, parseAttempt: 0, structuredResponse: null };
+  const messages = buildLlmMessages(state);
+  const turnKind = resolveTurnKind(state);
+
+  if (turnKind === 'tag_confirm' || turnKind === 'synthesize') {
+    try {
+      const response = await invokeChatModelWithTools(messages, hobbyCatalogTools);
+      return {
+        rawContent: messageContentToString(response.content),
+        parseAttempt: 0,
+        structuredResponse: null,
+      };
+    } catch {
+      // Fall through to plain invoke if tool-calling providers fail
+    }
+  }
+
+  const response = await invokeChatModel(messages);
+  return {
+    rawContent: messageContentToString(response.content),
+    parseAttempt: 0,
+    structuredResponse: null,
+  };
 }
 
 async function validateStructuredOutput(state: typeof RoadmapCreationState.State) {
+  const turnKind = resolveTurnKind(state);
+
   try {
     const structured = parseRoadmapCreationResponse(state.rawContent);
+
+    // Tag-confirm turn must ask the user — never skip straight to the goal card
+    if (turnKind === 'tag_confirm' && structured.type !== 'clarification') {
+      if (state.parseAttempt < 1) {
+        return { parseAttempt: state.parseAttempt + 1 };
+      }
+      throw new Error('Tag confirm turn did not return clarification');
+    }
+
+    // After tag selection, require a goal card (avoid looping on another MCQ)
+    if (turnKind === 'synthesize' && state.flowState === 'selecting-tags' && structured.type === 'clarification') {
+      if (state.parseAttempt < 1) {
+        return { parseAttempt: state.parseAttempt + 1 };
+      }
+      throw new Error('Synthesize after tag select did not return goal_suggestion');
+    }
+
+    // Preserve prior tags on refine if model omitted them (not on fresh tag-select synthesize)
+    if (
+      turnKind === 'refine' &&
+      structured.type === 'goal_suggestion' &&
+      (!structured.suggestedTags || structured.suggestedTags.length === 0) &&
+      state.suggestedTags.length > 0
+    ) {
+      return {
+        structuredResponse: {
+          ...structured,
+          suggestedTags: state.suggestedTags,
+        },
+      };
+    }
+
+    // Normalize tag-confirm clarification to selecting-tags flow
+    if (turnKind === 'tag_confirm' && structured.type === 'clarification') {
+      return {
+        structuredResponse: {
+          ...structured,
+          multiSelect: true,
+          flowState: 'selecting-tags' as const,
+        },
+      };
+    }
+
     return { structuredResponse: structured };
   } catch {
     if (state.parseAttempt < 1) {
@@ -198,10 +291,20 @@ async function validateStructuredOutput(state: typeof RoadmapCreationState.State
 }
 
 async function retryLlm(state: typeof RoadmapCreationState.State) {
-  const response = await invokeChatModel(buildLlmMessages(state, true));
-  const content =
-    typeof response.content === 'string' ? response.content : String(response.content ?? '');
-  return { rawContent: content };
+  const messages = buildLlmMessages(state, true);
+  const turnKind = resolveTurnKind(state);
+
+  if (turnKind === 'tag_confirm' || turnKind === 'synthesize') {
+    try {
+      const response = await invokeChatModelWithTools(messages, hobbyCatalogTools);
+      return { rawContent: messageContentToString(response.content) };
+    } catch {
+      // fall through
+    }
+  }
+
+  const response = await invokeChatModel(messages);
+  return { rawContent: messageContentToString(response.content) };
 }
 
 async function finalizeResponse(state: typeof RoadmapCreationState.State) {
@@ -212,14 +315,17 @@ async function finalizeResponse(state: typeof RoadmapCreationState.State) {
 
   let nextFlowState: RoadmapCreationFlowState = state.flowState;
   let clarificationRound = state.clarificationRound;
+  let nextTags = state.suggestedTags;
 
   if (structured.type === 'clarification') {
-    nextFlowState = 'clarifying';
+    nextFlowState =
+      structured.flowState === 'selecting-tags' ? 'selecting-tags' : 'clarifying';
     clarificationRound = state.clarificationRound + 1;
   } else if (structured.type === 'lesson_plan') {
     nextFlowState = 'reviewing-outline';
   } else {
     nextFlowState = 'confirming-goal';
+    nextTags = structured.suggestedTags ?? [];
   }
 
   const assistantText =
@@ -230,6 +336,7 @@ async function finalizeResponse(state: typeof RoadmapCreationState.State) {
   return {
     flowState: nextFlowState,
     clarificationRound,
+    suggestedTags: nextTags,
     conversationMessages: [new AIMessage(assistantText)],
   };
 }
@@ -273,6 +380,7 @@ export function initialStateFromRequest(
     roadmapName: input.roadmapName,
     roadmapGoal: input.roadmapGoal,
     roadmapBackground: input.roadmapBackground,
+    suggestedTags: input.suggestedTags ?? [],
     currentLessonPlan: input.currentLessonPlan ?? null,
     structuredResponse: null,
     parseAttempt: 0,
