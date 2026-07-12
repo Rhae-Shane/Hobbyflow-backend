@@ -32,6 +32,15 @@ app.get('/health', (_req, res) => {
   });
 });
 
+/** Public ping for mobile clients to verify API base URL / connectivity. */
+app.get('/api/v1/ping', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'hobbyflow-server',
+    time: new Date().toISOString(),
+  });
+});
+
 /** Hit this after deploy to confirm the VM is running the expected commit. */
 app.get('/version', (_req, res) => {
   res.json({
