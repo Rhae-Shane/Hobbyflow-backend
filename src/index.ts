@@ -24,7 +24,24 @@ app.use(express.json());
 app.use(jsonParseErrorHandler);
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'hobbyflow-server' });
+  res.json({
+    status: 'ok',
+    service: 'hobbyflow-server',
+    gitSha: env.DEPLOY_GIT_SHORT || env.DEPLOY_GIT_SHA || null,
+    deployedAt: env.DEPLOYED_AT || null,
+  });
+});
+
+/** Hit this after deploy to confirm the VM is running the expected commit. */
+app.get('/version', (_req, res) => {
+  res.json({
+    service: 'hobbyflow-server',
+    gitSha: env.DEPLOY_GIT_SHA || null,
+    gitShort: env.DEPLOY_GIT_SHORT || null,
+    deployedAt: env.DEPLOYED_AT || null,
+    nodeEnv: env.NODE_ENV,
+    pid: process.pid,
+  });
 });
 
 app.get('/openapi.json', (_req, res) => {

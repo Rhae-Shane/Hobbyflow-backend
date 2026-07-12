@@ -42,4 +42,8 @@ export const env = {
   YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY ?? '',
   GOOGLE_API_KEY: process.env.GOOGLE_API_KEY ?? '',
   GOOGLE_CSE_ID: process.env.GOOGLE_CSE_ID ?? '',
+  /** Set by deploy script so /version can prove which commit is live */
+  DEPLOY_GIT_SHA: process.env.DEPLOY_GIT_SHA ?? '',
+  DEPLOY_GIT_SHORT: process.env.DEPLOY_GIT_SHORT ?? '',
+  DEPLOYED_AT: process.env.DEPLOYED_AT ?? '',
 } as const;

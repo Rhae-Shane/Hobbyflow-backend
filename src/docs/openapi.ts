@@ -360,7 +360,7 @@ export const openApiDocument = {
       get: {
         tags: ['Health'],
         summary: 'Health check',
-        description: 'Returns service availability for load balancers and uptime monitors.',
+        description: 'Returns service availability plus the deployed git short SHA when set by CI.',
         responses: {
           200: {
             description: 'Service is healthy',
@@ -371,6 +371,35 @@ export const openApiDocument = {
                   properties: {
                     status: { type: 'string', example: 'ok' },
                     service: { type: 'string', example: 'hobbyflow-server' },
+                    gitSha: { type: 'string', nullable: true, example: 'b15844c' },
+                    deployedAt: { type: 'string', nullable: true, example: '2026-07-12T11:03:00Z' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/version': {
+      get: {
+        tags: ['Health'],
+        summary: 'Deployed version',
+        description: 'Returns the git commit currently running on this server after a CI deploy.',
+        responses: {
+          200: {
+            description: 'Deploy metadata',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    service: { type: 'string', example: 'hobbyflow-server' },
+                    gitSha: { type: 'string', nullable: true },
+                    gitShort: { type: 'string', nullable: true },
+                    deployedAt: { type: 'string', nullable: true },
+                    nodeEnv: { type: 'string', example: 'production' },
+                    pid: { type: 'integer' },
                   },
                 },
               },
