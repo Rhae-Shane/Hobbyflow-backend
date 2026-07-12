@@ -13,6 +13,10 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const CHAT_TIMEOUT_MS = 30_000;
 const MAX_TOOL_ITERATIONS = 6;
+/** Short TPM waits (e.g. "try again in 755ms") — retry same provider before failover */
+const RATE_LIMIT_RETRIES = 3;
+const RATE_LIMIT_DEFAULT_WAIT_MS = 1_500;
+const RATE_LIMIT_MAX_WAIT_MS = 45_000;
 
 function isRateLimitError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -29,8 +33,61 @@ function isRateLimitError(error: unknown): boolean {
     err.error?.code === 'rate_limit_exceeded' ||
     err.error?.type === 'tokens' ||
     message.includes('rate limit') ||
-    message.includes('tokens per minute')
+    message.includes('tokens per minute') ||
+    message.includes('quota exceeded') ||
+    message.includes('too many requests')
   );
+}
+
+function parseRetryDelayMs(error: unknown): number {
+  const message =
+    error && typeof error === 'object'
+      ? `${(error as { message?: string }).message ?? ''} ${
+          (error as { error?: { message?: string } }).error?.message ?? ''
+        }`
+      : String(error ?? '');
+
+  const msMatch = message.match(/try again in\s+(\d+(?:\.\d+)?)\s*ms/i);
+  if (msMatch) {
+    return Math.min(RATE_LIMIT_MAX_WAIT_MS, Math.ceil(Number(msMatch[1]) + 200));
+  }
+  const secMatch = message.match(/try again in\s+(\d+(?:\.\d+)?)\s*s/i);
+  if (secMatch) {
+    return Math.min(RATE_LIMIT_MAX_WAIT_MS, Math.ceil(Number(secMatch[1]) * 1000 + 250));
+  }
+  const retryInfo = message.match(/"retryDelay"\s*:\s*"(\d+)s"/i);
+  if (retryInfo) {
+    return Math.min(RATE_LIMIT_MAX_WAIT_MS, Number(retryInfo[1]) * 1000 + 250);
+  }
+  return RATE_LIMIT_DEFAULT_WAIT_MS;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function invokeWithRateLimitRetry<T>(
+  providerName: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= RATE_LIMIT_RETRIES; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (!isRateLimitError(error) || attempt === RATE_LIMIT_RETRIES) {
+        throw error;
+      }
+      const waitMs = parseRetryDelayMs(error);
+      log.warn(
+        { provider: providerName, attempt, waitMs },
+        'Provider rate-limited, waiting before retry',
+      );
+      await sleep(waitMs);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Provider retries exhausted');
 }
 
 function createGroqChatModelWithKey(apiKey: string): BaseChatModel {
@@ -38,7 +95,8 @@ function createGroqChatModelWithKey(apiKey: string): BaseChatModel {
     apiKey,
     model: GROQ_MODEL,
     temperature: 0.7,
-    maxRetries: 1,
+    // We handle short TPM waits ourselves in invokeWithRateLimitRetry
+    maxRetries: 0,
     timeout: CHAT_TIMEOUT_MS,
   }) as unknown as BaseChatModel;
 }
@@ -100,7 +158,7 @@ export async function invokeChatModel(messages: BaseMessage[]) {
   let lastError: unknown;
   for (const provider of providers) {
     try {
-      return await provider.model.invoke(messages);
+      return await invokeWithRateLimitRetry(provider.name, () => provider.model.invoke(messages));
     } catch (error) {
       lastError = error;
       const rateLimited = isRateLimitError(error);
@@ -112,7 +170,7 @@ export async function invokeChatModel(messages: BaseMessage[]) {
           groqKeyCount: env.GROQ_API_KEYS.length,
         },
         rateLimited
-          ? 'Provider rate-limited, trying next key/provider'
+          ? 'Provider rate-limited after retries, trying next key/provider'
           : 'Chat provider failed, trying next',
       );
     }
@@ -163,7 +221,9 @@ export async function invokeChatModelWithTools(
       let current: BaseMessage[] = [...messages];
 
       for (let i = 0; i < MAX_TOOL_ITERATIONS; i += 1) {
-        const response = await modelWithTools.invoke(current);
+        const response = await invokeWithRateLimitRetry(provider.name, () =>
+          modelWithTools.invoke(current),
+        );
         const aiMessage =
           response instanceof AIMessage
             ? response
