@@ -6,6 +6,8 @@ export const plansRateLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  // Safe behind nginx even if trust proxy is misconfigured temporarily
+  validate: { xForwardedForHeader: false },
   message: {
     error: 'Too many requests. Please wait a few minutes and try again.',
     code: ErrorCodes.RATE_LIMITED,
@@ -17,6 +19,7 @@ export const chatRateLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: {
     error: 'Too many chat requests. Please wait a few minutes and try again.',
     code: ErrorCodes.RATE_LIMITED,

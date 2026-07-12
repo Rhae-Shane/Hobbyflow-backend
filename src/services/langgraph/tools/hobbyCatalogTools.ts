@@ -21,7 +21,7 @@ export const listHobbiesInCategoryTool = new DynamicStructuredTool({
   description:
     'List catalog hobbies for a category_id returned by list_hobby_categories. Call after picking 1–2 fitting categories.',
   schema: z.object({
-    categoryId: z.number().int().positive().describe('hobby_category.id'),
+    categoryId: z.number().int().min(1).describe('hobby_category.id'),
   }),
   func: async ({ categoryId }) => {
     const result = await listHobbiesByCategory(categoryId);

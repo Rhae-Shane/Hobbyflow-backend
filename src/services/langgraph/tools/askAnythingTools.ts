@@ -52,6 +52,14 @@ export function createAskAnythingTools(options: AskAnythingToolsContext) {
     func: async () => toJson(await ctx.listMyRoadmaps(userId)),
   });
 
+  /** Alias — models sometimes invent get_my_roadmaps instead of list_my_roadmaps */
+  const getMyRoadmaps = new DynamicStructuredTool({
+    name: 'get_my_roadmaps',
+    description: 'Alias for list_my_roadmaps. List roadmaps owned by the signed-in user.',
+    schema: z.object({}),
+    func: async () => toJson(await ctx.listMyRoadmaps(userId)),
+  });
+
   const getRoadmapDetail = new DynamicStructuredTool({
     name: 'get_roadmap_detail',
     description:
@@ -185,7 +193,7 @@ export function createAskAnythingTools(options: AskAnythingToolsContext) {
     name: 'list_hobbies_in_category',
     description: 'List public catalog hobbies in a category.',
     schema: z.object({
-      categoryId: z.number().int().positive(),
+      categoryId: z.number().int().min(1),
     }),
     func: async ({ categoryId }) => toJson(await ctx.listHobbiesByCategory(categoryId)),
   });
@@ -196,6 +204,7 @@ export function createAskAnythingTools(options: AskAnythingToolsContext) {
     listMyHobbyTags,
     listMyHobbies,
     listMyRoadmaps,
+    getMyRoadmaps,
     getRoadmapDetail,
     getMyRoadmapMindmap,
     getMyLesson,
