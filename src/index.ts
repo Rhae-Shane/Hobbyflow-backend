@@ -69,7 +69,7 @@ app.use('/api/v1/roadmaps', roadmapsRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, '0.0.0.0', () => {
   const langsmithTracing = process.env.LANGSMITH_TRACING === 'true';
 
   logger.info(
