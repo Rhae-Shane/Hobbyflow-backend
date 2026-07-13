@@ -4,8 +4,10 @@ import type { Plan, Technique, Modality } from '../../types/plan.types';
 import { AppError, ErrorCodes } from '../../lib/AppError';
 import { createChildLogger } from '../../lib/logger';
 import { getCachedPlan, getCacheKey, setCachedPlan } from '../cache/planCache';
-import { createGeminiProvider } from '../provider/geminiProvider';
+import { env } from '../../config/env';
 import { createGroqProvider } from '../provider/groqProvider';
+import { createOpenRouterProvider } from '../provider/openrouterProvider';
+import { createAiGatewayProvider } from '../provider/aiGatewayProvider';
 import type { AIProvider } from '../provider/aiProvider.interface';
 import { getFallbackPlan } from './fallbackPlans';
 import {
@@ -22,7 +24,8 @@ import type { RawPlanResponse, RawTechniqueResponse } from './validator';
 const log = createChildLogger({ module: 'planner' });
 
 const groqProvider = createGroqProvider();
-const geminiProvider = createGeminiProvider();
+const openRouterProvider = createOpenRouterProvider();
+const aiGatewayProvider = createAiGatewayProvider();
 
 export class DuplicateTechniqueError extends AppError {
   constructor() {
@@ -49,20 +52,51 @@ export class InvalidTechniqueIdError extends AppError {
   }
 }
 
+type NamedProvider = { name: string; provider: AIProvider; enabled: boolean };
+
+function providerChain(): NamedProvider[] {
+  return [
+    { name: 'groq', provider: groqProvider, enabled: true },
+    {
+      name: 'openrouter',
+      provider: openRouterProvider,
+      enabled: Boolean(env.OPENROUTER_API_KEY),
+    },
+    {
+      name: 'vercel-ai-gateway',
+      provider: aiGatewayProvider,
+      enabled: Boolean(env.AI_GATEWAY_API_KEY),
+    },
+  ].filter((slot) => slot.enabled);
+}
+
 async function callProviders<T>(
   operation: (provider: AIProvider) => Promise<T>,
 ): Promise<T | null> {
-  try {
-    return await operation(groqProvider);
-  } catch (groqError) {
-    log.warn({ err: groqError }, 'Groq failed, trying Gemini immediately');
+  const providers = providerChain();
+  let lastError: unknown;
+
+  for (const [index, slot] of providers.entries()) {
     try {
-      return await operation(geminiProvider);
-    } catch (geminiError) {
-      log.error({ err: geminiError }, 'Both AI providers failed');
-      return null;
+      return await operation(slot.provider);
+    } catch (error) {
+      lastError = error;
+      const hasNext = index < providers.length - 1;
+      if (hasNext) {
+        log.warn(
+          { err: error, provider: slot.name, next: providers[index + 1]?.name },
+          'AI provider failed, trying next',
+        );
+      } else {
+        log.error({ err: error, provider: slot.name }, 'All AI providers failed');
+      }
     }
   }
+
+  if (lastError) {
+    return null;
+  }
+  return null;
 }
 
 function processTechniques(

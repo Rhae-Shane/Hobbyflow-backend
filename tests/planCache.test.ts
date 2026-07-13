@@ -1,5 +1,6 @@
 const mockGroqGenerateRoadmap = jest.fn();
-const mockGeminiGenerateRoadmap = jest.fn();
+const mockOpenRouterGenerateRoadmap = jest.fn();
+const mockAiGatewayGenerateRoadmap = jest.fn();
 
 jest.mock('../src/services/provider/groqProvider', () => ({
   createGroqProvider: () => ({
@@ -8,9 +9,16 @@ jest.mock('../src/services/provider/groqProvider', () => ({
   }),
 }));
 
-jest.mock('../src/services/provider/geminiProvider', () => ({
-  createGeminiProvider: () => ({
-    generateRoadmap: mockGeminiGenerateRoadmap,
+jest.mock('../src/services/provider/openrouterProvider', () => ({
+  createOpenRouterProvider: () => ({
+    generateRoadmap: mockOpenRouterGenerateRoadmap,
+    suggestReplacement: jest.fn(),
+  }),
+}));
+
+jest.mock('../src/services/provider/aiGatewayProvider', () => ({
+  createAiGatewayProvider: () => ({
+    generateRoadmap: mockAiGatewayGenerateRoadmap,
     suggestReplacement: jest.fn(),
   }),
 }));
@@ -46,7 +54,8 @@ describe('planCache', () => {
     jest.clearAllMocks();
     clearPlanCache();
     mockGroqGenerateRoadmap.mockResolvedValue(rawPlan);
-    mockGeminiGenerateRoadmap.mockResolvedValue(rawPlan);
+    mockOpenRouterGenerateRoadmap.mockResolvedValue(rawPlan);
+    mockAiGatewayGenerateRoadmap.mockResolvedValue(rawPlan);
   });
 
   afterEach(() => {
@@ -58,7 +67,8 @@ describe('planCache', () => {
     await generatePlan(request);
 
     expect(mockGroqGenerateRoadmap).toHaveBeenCalledTimes(1);
-    expect(mockGeminiGenerateRoadmap).not.toHaveBeenCalled();
+    expect(mockOpenRouterGenerateRoadmap).not.toHaveBeenCalled();
+    expect(mockAiGatewayGenerateRoadmap).not.toHaveBeenCalled();
   });
 
   it('expires entries after TTL', () => {

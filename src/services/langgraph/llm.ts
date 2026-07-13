@@ -2,15 +2,16 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { StructuredToolInterface } from '@langchain/core/tools';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatGroq } from '@langchain/groq';
+import { ChatOpenAI } from '@langchain/openai';
 import { env } from '../../config/env';
 import { createChildLogger } from '../../lib/logger';
 
 const log = createChildLogger({ module: 'langgraph.llm' });
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const AI_GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/v1';
 const CHAT_TIMEOUT_MS = 30_000;
 const MAX_TOOL_ITERATIONS = 6;
 /** Short TPM waits (e.g. "try again in 755ms") — retry same provider before failover */
@@ -118,16 +119,41 @@ export function createGroqChatModel(): BaseChatModel | null {
   return createGroqChatModelWithKey(key);
 }
 
-export function createGeminiChatModel(): BaseChatModel | null {
-  if (!env.GEMINI_API_KEY) {
+export function createOpenRouterChatModel(): BaseChatModel | null {
+  if (!env.OPENROUTER_API_KEY) {
     return null;
   }
 
-  return new ChatGoogleGenerativeAI({
-    apiKey: env.GEMINI_API_KEY,
-    model: GEMINI_MODEL,
+  return new ChatOpenAI({
+    apiKey: env.OPENROUTER_API_KEY,
+    model: env.OPENROUTER_MODEL,
     temperature: 0.7,
-    maxRetries: 1,
+    maxRetries: 0,
+    timeout: CHAT_TIMEOUT_MS,
+    configuration: {
+      baseURL: OPENROUTER_BASE_URL,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://hobbyflow.app',
+        'X-Title': 'HobbyFlow',
+      },
+    },
+  }) as unknown as BaseChatModel;
+}
+
+export function createAiGatewayChatModel(): BaseChatModel | null {
+  if (!env.AI_GATEWAY_API_KEY) {
+    return null;
+  }
+
+  return new ChatOpenAI({
+    apiKey: env.AI_GATEWAY_API_KEY,
+    model: env.AI_GATEWAY_MODEL,
+    temperature: 0.7,
+    maxRetries: 0,
+    timeout: CHAT_TIMEOUT_MS,
+    configuration: {
+      baseURL: AI_GATEWAY_BASE_URL,
+    },
   }) as unknown as BaseChatModel;
 }
 
@@ -142,9 +168,13 @@ function buildProviderChain(): ProviderSlot[] {
       keyIndex: index,
     });
   }
-  const gemini = createGeminiChatModel();
-  if (gemini) {
-    providers.push({ name: 'gemini', model: gemini });
+  const openrouter = createOpenRouterChatModel();
+  if (openrouter) {
+    providers.push({ name: 'openrouter', model: openrouter });
+  }
+  const aiGateway = createAiGatewayChatModel();
+  if (aiGateway) {
+    providers.push({ name: 'vercel-ai-gateway', model: aiGateway });
   }
   return providers;
 }

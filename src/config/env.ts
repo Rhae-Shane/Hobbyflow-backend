@@ -31,7 +31,13 @@ export const env = {
   /** @deprecated Prefer GROQ_API_KEYS; kept for single-key setups */
   GROQ_API_KEY: groqApiKeys[0] ?? '',
   GROQ_API_KEYS: groqApiKeys,
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
+  OPENROUTER_API_KEY: (process.env.OPENROUTER_API_KEY ?? '').trim(),
+  /** Free-tier model on OpenRouter (override if a free id rotates off the catalog). */
+  OPENROUTER_MODEL:
+    (process.env.OPENROUTER_MODEL ?? '').trim() || 'openai/gpt-oss-120b:free',
+  /** Vercel AI Gateway — last-resort paid fallback (stretch credit with a cheap model). */
+  AI_GATEWAY_API_KEY: (process.env.AI_GATEWAY_API_KEY ?? '').trim(),
+  AI_GATEWAY_MODEL: (process.env.AI_GATEWAY_MODEL ?? '').trim() || 'google/gemini-2.5-flash-lite',
   PLAN_CACHE_TTL_MS: Number(process.env.PLAN_CACHE_TTL_MS ?? 86_400_000),
   SUPABASE_URL: process.env.SUPABASE_URL ?? '',
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',

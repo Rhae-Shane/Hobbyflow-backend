@@ -3,8 +3,10 @@ import request from 'supertest';
 
 const mockGroqGenerateRoadmap = jest.fn();
 const mockGroqSuggestReplacement = jest.fn();
-const mockGeminiGenerateRoadmap = jest.fn();
-const mockGeminiSuggestReplacement = jest.fn();
+const mockOpenRouterGenerateRoadmap = jest.fn();
+const mockOpenRouterSuggestReplacement = jest.fn();
+const mockAiGatewayGenerateRoadmap = jest.fn();
+const mockAiGatewaySuggestReplacement = jest.fn();
 
 jest.mock('../src/middleware/auth', () => ({
   requireAuth: (
@@ -32,10 +34,17 @@ jest.mock('../src/services/provider/groqProvider', () => ({
   }),
 }));
 
-jest.mock('../src/services/provider/geminiProvider', () => ({
-  createGeminiProvider: () => ({
-    generateRoadmap: mockGeminiGenerateRoadmap,
-    suggestReplacement: mockGeminiSuggestReplacement,
+jest.mock('../src/services/provider/openrouterProvider', () => ({
+  createOpenRouterProvider: () => ({
+    generateRoadmap: mockOpenRouterGenerateRoadmap,
+    suggestReplacement: mockOpenRouterSuggestReplacement,
+  }),
+}));
+
+jest.mock('../src/services/provider/aiGatewayProvider', () => ({
+  createAiGatewayProvider: () => ({
+    generateRoadmap: mockAiGatewayGenerateRoadmap,
+    suggestReplacement: mockAiGatewaySuggestReplacement,
   }),
 }));
 
@@ -238,10 +247,11 @@ describe('generatePlan fallback', () => {
     jest.clearAllMocks();
     clearPlanCache();
     mockGroqGenerateRoadmap.mockRejectedValue(new Error('Groq down'));
-    mockGeminiGenerateRoadmap.mockRejectedValue(new Error('Gemini down'));
+    mockOpenRouterGenerateRoadmap.mockRejectedValue(new Error('OpenRouter down'));
+    mockAiGatewayGenerateRoadmap.mockRejectedValue(new Error('AI Gateway down'));
   });
 
-  it('returns a static fallback plan when both providers fail', async () => {
+  it('returns a static fallback plan when all providers fail', async () => {
     const plan = await generatePlan({
       hobby: 'chess',
       level: 'beginner',
@@ -262,7 +272,11 @@ describe('replaceTechnique duplicate guard', () => {
       name: 'Opening principles',
       order: 2,
     });
-    mockGeminiSuggestReplacement.mockResolvedValue({
+    mockOpenRouterSuggestReplacement.mockResolvedValue({
+      name: 'Opening principles',
+      order: 2,
+    });
+    mockAiGatewaySuggestReplacement.mockResolvedValue({
       name: 'Opening principles',
       order: 2,
     });
