@@ -1,6 +1,8 @@
+import './instrument';
 import cors from 'cors';
 import elements from 'elements-express';
 import express from 'express';
+import * as Sentry from '@sentry/node';
 import { env } from './config/env';
 import { openApiDocument } from './docs/openapi';
 import { logger } from './lib/logger';
@@ -81,6 +83,7 @@ app.use('/api/v1/leaderboard', leaderboardRouter);
 app.use('/api/v1/roadmaps', roadmapsRouter);
 
 app.use(notFoundHandler);
+Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 const server = app.listen(env.PORT, '0.0.0.0', () => {
@@ -92,6 +95,7 @@ const server = app.listen(env.PORT, '0.0.0.0', () => {
       port: env.PORT,
       nodeEnv: env.NODE_ENV,
       logLevel: env.LOG_LEVEL,
+      sentryEnabled: Boolean(process.env.SENTRY_DSN),
       langsmithTracing,
       langsmithProject: langsmithTracing ? process.env.LANGSMITH_PROJECT : undefined,
     },

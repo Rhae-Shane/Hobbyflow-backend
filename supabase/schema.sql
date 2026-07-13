@@ -671,6 +671,8 @@ create table if not exists public.profile_social_links (
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  -- Named platforms are unique per user; platform = 'other' may appear many times
+  -- (array of custom links) via the partial unique index below.
   constraint profile_social_links_platform_check check (
     platform in (
       'instagram',
@@ -686,6 +688,7 @@ create table if not exists public.profile_social_links (
   constraint profile_social_links_url_https check (url ~* '^https://')
 );
 
+-- One row per named platform; platform = 'other' may appear many times (array of custom links).
 create unique index if not exists profile_social_links_user_platform_unique
   on public.profile_social_links (user_id, platform)
   where platform <> 'other';
@@ -960,11 +963,15 @@ create table if not exists public.hobby_category (
   id integer primary key,
   name text not null,
   sort_order integer not null,
+  illustration_key text not null,
+  illustration_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint hobby_category_name_nonempty check (char_length(trim(name)) > 0),
   constraint hobby_category_name_unique unique (name),
-  constraint hobby_category_sort_order_unique unique (sort_order)
+  constraint hobby_category_sort_order_unique unique (sort_order),
+  constraint hobby_category_illustration_key_nonempty check (char_length(trim(illustration_key)) > 0),
+  constraint hobby_category_illustration_key_unique unique (illustration_key)
 );
 
 create table if not exists public.all_hobbies (
@@ -992,29 +999,31 @@ create trigger set_all_hobbies_updated_at
   before update on public.all_hobbies
   for each row execute function public.set_updated_at();
 
-insert into public.hobby_category (id, name, sort_order)
+insert into public.hobby_category (id, name, sort_order, illustration_key, illustration_url)
 values
-  (1, 'Sports & Fitness', 1),
-  (2, 'Outdoor & Nature', 2),
-  (3, 'Arts & Crafts', 3),
-  (4, 'Music', 4),
-  (5, 'Collecting', 5),
-  (6, 'Games & Puzzles', 6),
-  (7, 'Cooking & Food', 7),
-  (8, 'Writing & Literature', 8),
-  (9, 'Technology & Science', 9),
-  (10, 'Performing Arts', 10),
-  (11, 'Water Sports', 11),
-  (12, 'Winter Sports', 12),
-  (13, 'Animal & Pet Related', 13),
-  (14, 'Travel & Exploration', 14),
-  (15, 'DIY & Home', 15),
-  (16, 'Social & Community', 16),
-  (17, 'Mind & Body / Wellness', 17),
-  (18, 'Photography & Visual', 18),
-  (19, 'Automotive & Mechanical', 19),
-  (20, 'Miscellaneous', 20)
-on conflict (id) do nothing;
+  (1, 'Sports & Fitness', 1, 'sports-fitness', 'illustrations/categories/sports-fitness.svg'),
+  (2, 'Outdoor & Nature', 2, 'outdoor-nature', 'illustrations/categories/outdoor-nature.svg'),
+  (3, 'Arts & Crafts', 3, 'arts-crafts', 'illustrations/categories/arts-crafts.svg'),
+  (4, 'Music', 4, 'music', 'illustrations/categories/music.svg'),
+  (5, 'Collecting', 5, 'collecting', 'illustrations/categories/collecting.svg'),
+  (6, 'Games & Puzzles', 6, 'games-puzzles', 'illustrations/categories/games-puzzles.svg'),
+  (7, 'Cooking & Food', 7, 'cooking-food', 'illustrations/categories/cooking-food.svg'),
+  (8, 'Writing & Literature', 8, 'writing-literature', 'illustrations/categories/writing-literature.svg'),
+  (9, 'Technology & Science', 9, 'technology-science', 'illustrations/categories/technology-science.svg'),
+  (10, 'Performing Arts', 10, 'performing-arts', 'illustrations/categories/performing-arts.svg'),
+  (11, 'Water Sports', 11, 'water-sports', 'illustrations/categories/water-sports.svg'),
+  (12, 'Winter Sports', 12, 'winter-sports', 'illustrations/categories/winter-sports.svg'),
+  (13, 'Animal & Pet Related', 13, 'animal-pet', 'illustrations/categories/animal-pet.svg'),
+  (14, 'Travel & Exploration', 14, 'travel-exploration', 'illustrations/categories/travel-exploration.svg'),
+  (15, 'DIY & Home', 15, 'diy-home', 'illustrations/categories/diy-home.svg'),
+  (16, 'Social & Community', 16, 'social-community', 'illustrations/categories/social-community.svg'),
+  (17, 'Mind & Body / Wellness', 17, 'mind-body-wellness', 'illustrations/categories/mind-body-wellness.svg'),
+  (18, 'Photography & Visual', 18, 'photography-visual', 'illustrations/categories/photography-visual.svg'),
+  (19, 'Automotive & Mechanical', 19, 'automotive-mechanical', 'illustrations/categories/automotive-mechanical.svg'),
+  (20, 'Miscellaneous', 20, 'miscellaneous', 'illustrations/categories/miscellaneous.svg')
+on conflict (id) do update set
+  illustration_key = excluded.illustration_key,
+  illustration_url = coalesce(public.hobby_category.illustration_url, excluded.illustration_url);
 
 insert into public.all_hobbies (id, name, category_id)
 values

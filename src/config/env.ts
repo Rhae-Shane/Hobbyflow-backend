@@ -46,4 +46,6 @@ export const env = {
   DEPLOY_GIT_SHA: process.env.DEPLOY_GIT_SHA ?? '',
   DEPLOY_GIT_SHORT: process.env.DEPLOY_GIT_SHORT ?? '',
   DEPLOYED_AT: process.env.DEPLOYED_AT ?? '',
+  /** Sentry DSN — optional; errors are reported when set */
+  SENTRY_DSN: process.env.SENTRY_DSN ?? '',
 } as const;
