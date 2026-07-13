@@ -357,9 +357,49 @@ create table if not exists public.daily_task_days (
   primary key (user_id, task_date)
 );
 
+-- Spec 28 — roadmap exercises
+create table if not exists public.roadmap_exercises (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users (id) on delete cascade,
+  roadmap_id uuid not null references public.roadmaps (id) on delete cascade,
+  section_node_id uuid not null references public.roadmap_nodes (id) on delete cascade,
+  lesson_id uuid not null references public.roadmap_lessons (id) on delete cascade,
+  title text not null
+    check (char_length(trim(title)) > 0 and char_length(title) <= 80),
+  instructions text not null
+    check (char_length(trim(instructions)) > 0 and char_length(instructions) <= 800),
+  status text not null default 'incomplete'
+    check (status in ('incomplete', 'complete')),
+  sort_order integer not null default 0 check (sort_order >= 0),
+  generated_by text not null default 'langgraph'
+    check (generated_by in ('langgraph')),
+  rating_awarded integer not null default 0 check (rating_awarded >= 0),
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create index if not exists roadmap_exercises_roadmap_idx
+  on public.roadmap_exercises (roadmap_id);
+create index if not exists roadmap_exercises_lesson_idx
+  on public.roadmap_exercises (lesson_id);
+create index if not exists roadmap_exercises_user_date_complete_idx
+  on public.roadmap_exercises (user_id, completed_at)
+  where status = 'complete';
+
+create table if not exists public.exercise_rating_days (
+  user_id uuid not null references public.users (id) on delete cascade,
+  activity_date date not null,
+  rating_granted boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, activity_date)
+);
+
 alter table public.user_gamification enable row level security;
 alter table public.daily_tasks enable row level security;
 alter table public.daily_task_days enable row level security;
+alter table public.roadmap_exercises enable row level security;
+alter table public.exercise_rating_days enable row level security;
 
 drop policy if exists "user_gamification_select_authenticated" on public.user_gamification;
 drop policy if exists "user_gamification_insert_own" on public.user_gamification;
@@ -372,6 +412,14 @@ drop policy if exists "daily_task_days_select_own" on public.daily_task_days;
 drop policy if exists "daily_task_days_insert_own" on public.daily_task_days;
 drop policy if exists "daily_task_days_update_own" on public.daily_task_days;
 drop policy if exists "daily_task_days_delete_own" on public.daily_task_days;
+drop policy if exists "roadmap_exercises_select_own" on public.roadmap_exercises;
+drop policy if exists "roadmap_exercises_insert_own" on public.roadmap_exercises;
+drop policy if exists "roadmap_exercises_update_own" on public.roadmap_exercises;
+drop policy if exists "roadmap_exercises_delete_own" on public.roadmap_exercises;
+drop policy if exists "exercise_rating_days_select_own" on public.exercise_rating_days;
+drop policy if exists "exercise_rating_days_insert_own" on public.exercise_rating_days;
+drop policy if exists "exercise_rating_days_update_own" on public.exercise_rating_days;
+drop policy if exists "exercise_rating_days_delete_own" on public.exercise_rating_days;
 
 create policy "user_gamification_select_authenticated"
   on public.user_gamification for select
@@ -428,9 +476,51 @@ create policy "daily_task_days_delete_own"
   to authenticated
   using (auth.uid() = user_id);
 
+create policy "roadmap_exercises_select_own"
+  on public.roadmap_exercises for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "roadmap_exercises_insert_own"
+  on public.roadmap_exercises for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "roadmap_exercises_update_own"
+  on public.roadmap_exercises for update
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "roadmap_exercises_delete_own"
+  on public.roadmap_exercises for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "exercise_rating_days_select_own"
+  on public.exercise_rating_days for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "exercise_rating_days_insert_own"
+  on public.exercise_rating_days for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "exercise_rating_days_update_own"
+  on public.exercise_rating_days for update
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "exercise_rating_days_delete_own"
+  on public.exercise_rating_days for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 grant select, insert, update on table public.user_gamification to authenticated;
 grant select, insert, update, delete on table public.daily_tasks to authenticated;
 grant select, insert, update, delete on table public.daily_task_days to authenticated;
+grant select, insert, update, delete on table public.roadmap_exercises to authenticated;
+grant select, insert, update, delete on table public.exercise_rating_days to authenticated;
 
 alter table public.users
   add column if not exists username text,
@@ -487,6 +577,11 @@ create trigger set_daily_tasks_updated_at
 drop trigger if exists set_daily_task_days_updated_at on public.daily_task_days;
 create trigger set_daily_task_days_updated_at
   before update on public.daily_task_days
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists set_exercise_rating_days_updated_at on public.exercise_rating_days;
+create trigger set_exercise_rating_days_updated_at
+  before update on public.exercise_rating_days
   for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
@@ -2551,7 +2646,7 @@ declare
   tables text[] := array[
     'admins', 'users', 'user_preferences', 'hobbies', 'user_plans',
     'chat_conversations', 'roadmaps', 'roadmap_nodes', 'roadmap_lessons',
-    'user_gamification', 'daily_tasks', 'daily_task_days', 'leagues', 'user_pacts',
+    'user_gamification', 'daily_tasks', 'daily_task_days', 'roadmap_exercises', 'exercise_rating_days', 'leagues', 'user_pacts',
     'profile_social_links', 'posts', 'post_media', 'hobby_category',
     'all_hobbies', 'post_hobby_tags', 'post_likes', 'post_comments'
   ];

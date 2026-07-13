@@ -6,7 +6,7 @@ import {
   type MindMapNode,
 } from '../src/schemas/roadmapMindMap.schema';
 import {
-  buildFallbackMindMap,
+  buildSectionLessonMindMap,
   computeMindMapFingerprint,
 } from '../src/services/roadmap/mindmapHelpers';
 
@@ -103,8 +103,8 @@ describe('mindmapService helpers', () => {
     expect(a).toHaveLength(64);
   });
 
-  it('builds fallback covering all lessons', () => {
-    const tree = buildFallbackMindMap('Drumming Foundations for Beginners', [
+  it('builds section-lesson tree covering all lessons', () => {
+    const tree = buildSectionLessonMindMap('Drumming Foundations for Beginners', [
       {
         id: lessonA,
         name: 'Keeping Time',

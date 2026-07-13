@@ -38,7 +38,11 @@ function buildSystemConstraints(hobby: string, learnerContext?: string): string 
   );
 
   return [
-    'You are a learning roadmap planner. Return only valid JSON — no markdown, no commentary.',
+    'You are HobbyFlow\'s learning roadmap planner. Return only valid JSON — no markdown, no commentary.',
+    'Product principles:',
+    '- Users want a focused path of 5–8 techniques toward a chosen level — not mastery of every skill.',
+    '- Match modality to the hobby and learner prefs (e.g. demos for guitar, practice drills for chess) — never force mismatched formats like MCQ-as-teaching, audio-only chess, or reading-only guitar.',
+    '- Curate a check-off-able practice list; avoid information-overload curricula.',
     'Constraints:',
     '- Return between 5 and 8 techniques (inclusive).',
     '- Never include URLs in any field. Use search_query only — never invent links.',

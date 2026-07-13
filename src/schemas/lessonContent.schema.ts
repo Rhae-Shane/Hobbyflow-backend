@@ -109,6 +109,28 @@ export const lessonDraftSchema = z.object({
 
 export const generateLessonRequestSchema = z.object({
   force: z.boolean().optional().default(false),
+  /** When true (with force), rewrite lesson title/hook/meaning before regenerating media. */
+  rewriteSession: z.boolean().optional().default(false),
+});
+
+export const regenerateSectionRequestSchema = z.object({
+  /** After rewriting titles, also force-regenerate multimedia for each active lesson (slow). */
+  regenerateContent: z.boolean().optional().default(false),
+});
+
+export const regenerateSectionResponseSchema = z.object({
+  sectionId: z.string().uuid(),
+  sectionName: z.string(),
+  lessonIds: z.array(z.string().uuid()),
+  contentResults: z
+    .array(
+      z.object({
+        lessonId: z.string().uuid(),
+        status: z.enum(['success', 'generating', 'failed', 'skipped']),
+        message: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export const generateLessonResponseSchema = z.object({

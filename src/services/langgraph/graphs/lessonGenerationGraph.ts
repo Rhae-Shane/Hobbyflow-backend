@@ -149,6 +149,7 @@ async function planContent(
     backgroundLevel: state.personalize.backgroundLevel,
     roadmapTitle: state.roadmapTitle,
     siblingLessonNames: state.siblingLessonNames,
+    learnerContext: state.learnerContext,
     allowVideo: state.allowVideo,
     allowAudio: state.allowAudio,
     allowImages: state.allowImages,
@@ -252,8 +253,13 @@ async function resolveMedia(
     const video = await resolveYouTubeVideo(
       draft.videoQuery ?? `${state.hobby} ${state.sessionConfig.name} tutorial`,
       'video',
+      { hobby: state.hobby, lessonName: state.sessionConfig.name },
     );
-    media.push(video);
+    if (video) {
+      media.push(video);
+    } else {
+      skipped.push('video');
+    }
   } else {
     skipped.push('video');
   }
@@ -262,8 +268,13 @@ async function resolveMedia(
     const audio = await resolveYouTubeVideo(
       draft.audioQuery ?? `${state.hobby} ${state.sessionConfig.name} play along`,
       'audio',
+      { hobby: state.hobby, lessonName: state.sessionConfig.name },
     );
-    media.push(audio);
+    if (audio) {
+      media.push(audio);
+    } else {
+      skipped.push('audio');
+    }
   } else {
     skipped.push('audio');
   }
@@ -351,8 +362,9 @@ function assemblePages(
 
   const validation = validateFinalContent(content, {
     requireImage: state.allowImages,
-    requireVideo: state.allowVideo,
-    requireAudio: state.allowAudio,
+    // Skip hard-fail when search APIs found nothing — better empty than wrong-topic Python/CS filler
+    requireVideo: state.allowVideo && !state.skippedModalities.includes('video'),
+    requireAudio: state.allowAudio && !state.skippedModalities.includes('audio'),
   });
 
   if (!validation.ok) {

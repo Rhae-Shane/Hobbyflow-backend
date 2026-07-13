@@ -13,7 +13,7 @@ import {
   createLessonGenerationGraph,
   initialStateFromInput,
 } from '../langgraph/graphs/lessonGenerationGraph';
-
+import { rewriteLessonSessionConfig } from './lessonRewriteService';
 const log = createChildLogger({ module: 'lessonGenerationService' });
 
 const GENERATING_STALE_MS = 2 * 60 * 1000;
@@ -53,12 +53,16 @@ export async function generateLessonContent(
   userId: string,
   roadmapId: string,
   lessonId: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; rewriteSession?: boolean } = {},
 ): Promise<GenerateLessonResponse> {
-  const force = options.force === true;
+  const rewriteSession = options.rewriteSession === true;
+  const force = options.force === true || rewriteSession;
   const startedAtMs = Date.now();
   const requestGroupId = randomUUID();
 
+  if (rewriteSession) {
+    await rewriteLessonSessionConfig({ userId, roadmapId, lessonId });
+  }
   const { data: lesson, error: lessonError } = await supabaseAdmin
     .from('roadmap_lessons')
     .select('id, roadmap_id, node_id, user_id, status, updated_at, session_config')

@@ -1181,9 +1181,9 @@ export const openApiDocument = {
     '/api/v1/roadmaps/{id}/mindmap': {
       post: {
         tags: ['Roadmaps'],
-        summary: 'Generate or get mind map',
+        summary: 'Build or get mind map',
         description:
-          'Returns a cached mind map (200) or generates a new one (201). Pass `force: true` to regenerate. Requires a valid Supabase JWT.',
+          'Returns a cached mind map (200) or builds a deterministic roadmap → section → lesson tree (201). Pass `force: true` to rebuild. Requires a valid Supabase JWT.',
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -1344,6 +1344,157 @@ export const openApiDocument = {
               },
             },
           },
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/exercises': {
+      get: {
+        tags: ['Roadmaps'],
+        summary: 'List roadmap exercises',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'lessonId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'sectionId',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          200: { description: 'Exercise list' },
+          401: unauthorizedResponse,
+          404: { description: 'Roadmap not found' },
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/lessons/{lessonId}/exercises/generate': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Generate 2–3 lesson exercises (LangGraph)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'lessonId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          201: { description: 'Exercises created' },
+          401: unauthorizedResponse,
+          409: { description: 'Soft cap or skipped lesson' },
+          429: rateLimitedResponse,
+          502: { description: 'LLM failure' },
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/exercises/{exerciseId}/complete': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Mark exercise complete (activity day + optional +5 rating)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'exerciseId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['local_date'],
+                properties: {
+                  local_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Exercise completed' },
+          401: unauthorizedResponse,
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/exercises/{exerciseId}/incomplete': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Mark exercise incomplete (no rating clawback)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'exerciseId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          200: { description: 'Exercise marked incomplete' },
+          401: unauthorizedResponse,
+        },
+      },
+    },
+    '/api/v1/roadmaps/{id}/exercises/{exerciseId}/regenerate': {
+      post: {
+        tags: ['Roadmaps'],
+        summary: 'Regenerate one exercise',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+          {
+            name: 'exerciseId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+          },
+        ],
+        responses: {
+          200: { description: 'Exercise regenerated' },
+          401: unauthorizedResponse,
+          429: rateLimitedResponse,
+          502: { description: 'LLM failure' },
         },
       },
     },

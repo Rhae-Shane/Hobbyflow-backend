@@ -1,8 +1,5 @@
 import { createHash } from 'crypto';
-import {
-  assertLessonCoverage,
-  type MindMapNode,
-} from '../../schemas/roadmapMindMap.schema';
+import { type MindMapNode } from '../../schemas/roadmapMindMap.schema';
 
 export type LessonContext = {
   id: string;
@@ -40,7 +37,8 @@ export function shortMindMapTitle(title: string): string {
     .slice(0, 60);
 }
 
-export function buildFallbackMindMap(
+/** Deterministic tree: roadmap root → sections → lessons. */
+export function buildSectionLessonMindMap(
   title: string,
   lessons: LessonContext[],
 ): { title: string; root: MindMapNode } {
@@ -87,21 +85,5 @@ export function buildFallbackMindMap(
   };
 }
 
-export function repairCoverage(root: MindMapNode, expectedLessonIds: string[]): MindMapNode {
-  try {
-    assertLessonCoverage(root, expectedLessonIds);
-    return root;
-  } catch {
-    const covered = new Set<string>();
-    const walk = (n: MindMapNode) => {
-      for (const id of n.lessonNodeIds) covered.add(id);
-      n.children.forEach(walk);
-    };
-    walk(root);
-    const missing = expectedLessonIds.filter((id) => !covered.has(id));
-    return {
-      ...root,
-      lessonNodeIds: [...new Set([...root.lessonNodeIds, ...missing])],
-    };
-  }
-}
+/** @deprecated Use buildSectionLessonMindMap */
+export const buildFallbackMindMap = buildSectionLessonMindMap;

@@ -3,137 +3,34 @@ import { env } from '../../config/env';
 import { createChildLogger } from '../../lib/logger';
 import { supabaseAdmin } from '../../lib/supabase';
 import type { LessonMediaAsset } from '../../schemas/lessonContent.schema';
+import { runVideoSearchAgent } from './videoSearchAgent';
+
+export {
+  buildYouTubeMediaAsset,
+  ensureHobbyInQuery,
+  searchYouTubeCandidates,
+  youtubeThumb,
+  youtubeWatchUrl,
+  type YouTubeCandidate,
+} from './youtubeCandidates';
 
 const log = createChildLogger({ module: 'mediaResolve' });
 
-/** Curated embeddable YouTube ids (fallback when search APIs unavailable). */
-const CURATED_VIDEO_IDS = [
-  'M7lc1UVf-VE', // YouTube iframe API sample (always embeddable)
-  'rfscVS0vtbw', // Learn Python - freeCodeCamp (longform educational)
-  '8jLOx1hD3_o', // CS50
-  'PkZNo7MFNFg', // JS tutorial
-  'zOjov-2OZ0E', // Programming intro
-] as const;
-
-const CURATED_AUDIO_IDS = [
-  'jfKfPfyJRdk', // lofi stream (audio-friendly)
-  '5qap5aO4i9A', // lofi girl
-  'DWcJFNfaw9c',
-  'lTRiuFIWV54',
-] as const;
-
-function hashPick<T extends string>(seed: string, pool: readonly T[]): T {
-  const digest = createHash('sha256').update(seed).digest();
-  const index = digest[0]! % pool.length;
-  return pool[index]!;
-}
-
-function youtubeWatchUrl(videoId: string): string {
-  return `https://www.youtube.com/watch?v=${videoId}`;
-}
-
-function youtubeThumb(videoId: string): string {
-  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-}
-
-function extractYouTubeId(text: string): string | null {
-  const patterns = [
-    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-  ];
-  for (const re of patterns) {
-    const match = text.match(re);
-    if (match?.[1]) return match[1];
-  }
-  return null;
-}
-
-async function searchYouTubeApi(query: string): Promise<string | null> {
-  if (!env.YOUTUBE_API_KEY) return null;
-
-  const url = new URL('https://www.googleapis.com/youtube/v3/search');
-  url.searchParams.set('part', 'snippet');
-  url.searchParams.set('type', 'video');
-  url.searchParams.set('maxResults', '5');
-  url.searchParams.set('q', query);
-  url.searchParams.set('key', env.YOUTUBE_API_KEY);
-  url.searchParams.set('safeSearch', 'strict');
-
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
-    if (!response.ok) {
-      log.warn({ status: response.status, query }, 'YouTube search API failed');
-      return null;
-    }
-
-    const data = (await response.json()) as {
-      items?: Array<{ id?: { videoId?: string } }>;
-    };
-    const videoId = data.items?.find((item) => item.id?.videoId)?.id?.videoId;
-    return videoId ?? null;
-  } catch (error) {
-    log.warn({ err: error, query }, 'YouTube search API error');
-    return null;
-  }
-}
-
-async function searchTavilyForYouTube(query: string): Promise<string | null> {
-  if (!env.TAVILY_API_KEY) return null;
-
-  try {
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: env.TAVILY_API_KEY,
-        query: `${query} site:youtube.com`,
-        search_depth: 'basic',
-        max_results: 5,
-      }),
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) return null;
-    const data = (await response.json()) as {
-      results?: Array<{ url?: string; content?: string }>;
-    };
-    for (const result of data.results ?? []) {
-      const fromUrl = result.url ? extractYouTubeId(result.url) : null;
-      if (fromUrl) return fromUrl;
-      const fromContent = result.content ? extractYouTubeId(result.content) : null;
-      if (fromContent) return fromContent;
-    }
-  } catch (error) {
-    log.warn({ err: error }, 'Tavily YouTube search failed');
-  }
-  return null;
-}
-
+/**
+ * Resolve a YouTube watch URL via search → judge → refine retry agent.
+ * Returns null when no on-topic video is found — never invents filler clips.
+ */
 export async function resolveYouTubeVideo(
   query: string,
   kind: 'video' | 'audio',
-): Promise<LessonMediaAsset> {
-  const apiId = await searchYouTubeApi(query);
-  const tavilyId = apiId ?? (await searchTavilyForYouTube(query));
-  const pool = kind === 'audio' ? CURATED_AUDIO_IDS : CURATED_VIDEO_IDS;
-  const videoId = tavilyId ?? hashPick(`${kind}:${query}`, pool);
-  const provider = apiId || tavilyId ? 'youtube' : 'curated';
-  const fetchedAt = new Date().toISOString();
-
-  return {
-    id: randomUUID(),
+  options?: { hobby?: string; lessonName?: string },
+): Promise<LessonMediaAsset | null> {
+  return runVideoSearchAgent({
+    initialQuery: query,
     kind,
-    url: youtubeWatchUrl(videoId),
-    title: kind === 'audio' ? 'Listen along' : 'Watch this lesson',
-    source: {
-      provider,
-      searchQuery: query,
-      externalId: videoId,
-      sourceUrl: youtubeWatchUrl(videoId),
-      fetchedAt,
-    },
-    thumbnailUrl: youtubeThumb(videoId),
-  };
+    hobby: options?.hobby ?? '',
+    lessonName: options?.lessonName ?? '',
+  });
 }
 
 type GoogleImageHit = { link: string; title?: string };

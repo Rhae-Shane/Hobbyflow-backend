@@ -166,17 +166,21 @@ describe('lessonGenerationGraph', () => {
     expect(result.skippedModalities).toContain('audio');
   });
 
-  it('prompt tells the model not to put search URLs in markdown', () => {
+  it('prompt tells the model not to put search URLs in markdown and keep queries on-hobby', () => {
     const prompt = buildLessonPlanUserPrompt({
       hobby: 'Drums',
       lessonName: 'Keeping Time',
       hook: 'Hook',
       meaning: 'Meaning',
+      learnerContext: 'Formats: Video (video demos)',
       allowVideo: true,
       allowAudio: true,
       allowImages: true,
     });
     expect(prompt).toContain('imageQuery');
     expect(prompt).toContain('videoQuery');
+    expect(prompt).toContain('starting with "Drums"');
+    expect(prompt).toContain('Learner prefs');
+    expect(prompt).toContain('Formats: Video');
   });
 });
