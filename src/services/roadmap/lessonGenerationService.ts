@@ -117,6 +117,14 @@ export async function generateLessonContent(
     }
   }
 
+  if (lessonRow.status === 'skipped') {
+    throw new AppError(
+      409,
+      ErrorCodes.VALIDATION_ERROR,
+      'Skipped lessons cannot be regenerated. Un-skip is not supported; pick another lesson.',
+    );
+  }
+
   if (!['pending_content', 'failed', 'generating', 'ready'].includes(lessonRow.status) && !force) {
     throw new AppError(
       409,

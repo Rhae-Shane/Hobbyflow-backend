@@ -12,7 +12,7 @@ Database schema and migrations for HobbyFlow auth + plan sync.
 | `user_plans` | One plan per hobby — plan JSON, onboarding profile, streak |
 | `roadmaps` | Spec 13: structured roadmap from approved outline (intro, cover, status) |
 | `roadmap_nodes` | Spec 13: Section + Lesson nodes |
-| `roadmap_lessons` | Spec 13: ordered learning path (`pending_content` until generated) |
+| `roadmap_lessons` | Spec 13: ordered learning path (`pending_content` until generated; `skipped` = struck out) |
 | `chat_conversations` | Spec 12: creation/coach chat persistence |
 | `admins` | Privileged users (`user_id` → `users.id`); paste IDs via Dashboard |
 
