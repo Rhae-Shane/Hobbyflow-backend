@@ -83,6 +83,7 @@ describe('POST /roadmaps/:id/lessons/:lessonId/generate', () => {
     expect(res.body.status).toBe('success');
     expect(mockGenerateLesson).toHaveBeenCalledWith('test-user', roadmapId, lessonId, {
       force: false,
+      rewriteSession: false,
     });
   });
 
@@ -120,6 +121,7 @@ describe('POST /roadmaps/:id/lessons/:lessonId/generate', () => {
     expect(res.body.status).toBe('failed');
     expect(mockGenerateLesson).toHaveBeenCalledWith('test-user', roadmapId, lessonId, {
       force: true,
+      rewriteSession: false,
     });
   });
 });
