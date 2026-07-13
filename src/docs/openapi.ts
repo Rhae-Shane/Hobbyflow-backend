@@ -13,7 +13,7 @@ const roadmapCreationFlowStateEnum = [
   'reviewing-outline',
 ];
 const lessonMediaKindEnum = ['image', 'video', 'audio'];
-const mediaProviderEnum = ['google_images', 'youtube', 'llm_svg', 'upload', 'curated'];
+const mediaProviderEnum = ['google_images', 'wikimedia', 'youtube', 'llm_svg', 'upload', 'curated'];
 
 const techniqueSchema = {
   type: 'object',

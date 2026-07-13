@@ -1,8 +1,17 @@
 import { z } from 'zod';
 
-export const GRAPH_VERSION = 'lesson-generation-v1';
+export const GRAPH_VERSION = 'lesson-generation-v2';
 
 export const lessonMediaKindSchema = z.enum(['image', 'video', 'audio']);
+
+export const lessonMediaProviderSchema = z.enum([
+  'google_images',
+  'wikimedia',
+  'youtube',
+  'llm_svg',
+  'upload',
+  'curated',
+]);
 
 /** Internal asset (may include searchQuery for provenance). */
 export const lessonMediaAssetSchema = z.object({
@@ -13,7 +22,7 @@ export const lessonMediaAssetSchema = z.object({
   title: z.string().optional(),
   alt: z.string().optional(),
   source: z.object({
-    provider: z.enum(['google_images', 'youtube', 'llm_svg', 'upload', 'curated']),
+    provider: lessonMediaProviderSchema,
     searchQuery: z.string().optional(),
     externalId: z.string().optional(),
     sourceUrl: z.string().min(1).optional(),
@@ -94,6 +103,9 @@ export const lessonDraftPageSchema = z.object({
 
 export const lessonDraftSchema = z.object({
   pages: z.array(lessonDraftPageSchema).min(4).max(8),
+  /** Preferred: 2–3 distinct YouTube search phrases for the lesson. */
+  videoQueries: z.array(z.string().min(1)).min(1).max(4).optional(),
+  /** Legacy single-query field (still accepted). */
   videoQuery: z.string().min(1).optional(),
   audioQuery: z.string().min(1).optional(),
   keywords: z
@@ -151,7 +163,7 @@ export const generateLessonResponseSchema = z.object({
 /** Client-facing media: never expose searchQuery. */
 export const publicLessonMediaAssetSchema = lessonMediaAssetSchema.extend({
   source: z.object({
-    provider: z.enum(['google_images', 'youtube', 'llm_svg', 'upload', 'curated']),
+    provider: lessonMediaProviderSchema,
     externalId: z.string().optional(),
     sourceUrl: z.string().min(1).optional(),
     fetchedAt: z.string(),

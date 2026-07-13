@@ -8,27 +8,41 @@ jest.mock('../src/services/langgraph/llm', () => ({
       pages: [
         {
           heading: 'What You Will Learn',
-          markdown: 'The **beat** is the pulse.',
-          imageQuery: 'drum beat pulse diagram',
+          markdown: 'The **beat** is the pulse.\n\n* **Feel time** — tap steadily\n* **Count aloud** — stay locked in',
+          imageQuery: 'Drums beat pulse diagram',
         },
         {
           heading: 'The Heartbeat of Music',
-          markdown: 'Tap your foot to feel time.',
-          imageQuery: 'foot tapping to music',
+          markdown: 'Tap your foot to feel time across a full bar.',
+          imageQuery: 'Drums foot tapping to music',
         },
         {
           heading: 'Finding the Pulse',
-          markdown: 'Listen first, then move.',
-          imageQuery: 'listening for rhythm',
+          markdown: 'Listen first, then move with the metronome.',
+          imageQuery: 'Drums listening for rhythm',
         },
         {
-          heading: 'How to Apply It',
-          markdown: 'Play along for one minute.',
-          imageQuery: 'beginner drum practice',
+          heading: 'Moving With the Groove',
+          markdown: 'Coordinate limbs while keeping a steady pulse.',
+          imageQuery: 'Drums limb coordination diagram',
+        },
+        {
+          heading: 'First Song Practice',
+          markdown: 'Play along for one minute without rushing.',
+          imageQuery: 'Drums beginner play along',
+        },
+        {
+          heading: 'Apply Keeping Time Today',
+          markdown: 'Use the pulse in a short real practice session.',
+          imageQuery: 'Drums applying keeping time',
         },
       ],
-      videoQuery: 'beginner drumming keeping time tutorial',
-      audioQuery: 'metronome drum play along',
+      videoQueries: [
+        'Drums keeping time explained',
+        'Drums keeping time example demo',
+        'Drums keeping time practice drill',
+      ],
+      audioQuery: 'Drums metronome play along',
       keywords: [
         { name: 'Beat', description: 'Steady pulse' },
         { name: 'Tempo', description: 'Speed of the music' },
@@ -39,32 +53,53 @@ jest.mock('../src/services/langgraph/llm', () => ({
 }));
 
 jest.mock('../src/services/lesson/mediaResolve', () => ({
-  resolveYouTubeVideo: jest.fn(async (query: string, kind: 'video' | 'audio') => ({
-    id: kind === 'video' ? '11111111-1111-4111-8111-111111111111' : '22222222-2222-4222-8222-222222222222',
-    kind,
-    url: `https://www.youtube.com/watch?v=${kind === 'video' ? 'oI_EnzY4jvY' : '5qap5aO4i9A'}`,
-    title: kind === 'video' ? 'Watch' : 'Listen',
-    source: {
-      provider: 'youtube',
-      searchQuery: query,
-      externalId: kind === 'video' ? 'oI_EnzY4jvY' : '5qap5aO4i9A',
-      sourceUrl: `https://www.youtube.com/watch?v=${kind === 'video' ? 'oI_EnzY4jvY' : '5qap5aO4i9A'}`,
-      fetchedAt: new Date().toISOString(),
-    },
-    thumbnailUrl: `https://i.ytimg.com/vi/${kind === 'video' ? 'oI_EnzY4jvY' : '5qap5aO4i9A'}/hqdefault.jpg`,
-  })),
-  resolveLessonImage: jest.fn(async ({ alt }: { alt: string }) => ({
-    id: '33333333-3333-4333-8333-333333333333',
-    kind: 'image',
-    url: 'https://example.com/lesson-media/demo.svg',
-    alt,
-    source: {
-      provider: 'llm_svg',
-      searchQuery: 'hidden from client',
-      sourceUrl: 'https://example.com/lesson-media/demo.svg',
-      fetchedAt: new Date().toISOString(),
-    },
-  })),
+  resolveYouTubeVideo: jest.fn(async (query: string, kind: 'video' | 'audio') => {
+    const id =
+      kind === 'audio'
+        ? '22222222-2222-4222-8222-222222222222'
+        : query.includes('demo')
+          ? '11111111-1111-4111-8111-111111111112'
+          : query.includes('drill')
+            ? '11111111-1111-4111-8111-111111111113'
+            : '11111111-1111-4111-8111-111111111111';
+    const videoId =
+      kind === 'audio'
+        ? '5qap5aO4i9A'
+        : query.includes('demo')
+          ? 'oI_EnzY4jvY'
+          : query.includes('drill')
+            ? 'dQw4w9WgXcQ'
+            : 'jNQXAC9IVRw';
+    return {
+      id,
+      kind,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      title: kind === 'video' ? `Watch ${query}` : 'Listen',
+      source: {
+        provider: 'youtube',
+        searchQuery: query,
+        externalId: videoId,
+        sourceUrl: `https://www.youtube.com/watch?v=${videoId}`,
+        fetchedAt: new Date().toISOString(),
+      },
+      thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    };
+  }),
+  resolveLessonImage: jest.fn(async ({ alt, query }: { alt: string; query: string }) => {
+    const hash = Buffer.from(`${query}:${alt}`).toString('hex').slice(0, 12).padEnd(12, '0');
+    return {
+      id: `33333333-3333-4333-8333-${hash}`,
+      kind: 'image',
+      url: `https://example.com/lesson-media/${encodeURIComponent(query)}.jpg`,
+      alt,
+      source: {
+        provider: 'wikimedia',
+        searchQuery: query,
+        sourceUrl: `https://example.com/lesson-media/${encodeURIComponent(query)}.jpg`,
+        fetchedAt: new Date().toISOString(),
+      },
+    };
+  }),
 }));
 
 import {
@@ -124,9 +159,19 @@ describe('lessonGenerationGraph', () => {
 
     const publicContent = sanitizeLessonContentForClient(result.content!);
     expect(publicContent.pages.length).toBeGreaterThanOrEqual(4);
-    expect(publicContent.media.some((m) => m.kind === 'image')).toBe(true);
-    expect(publicContent.media.some((m) => m.kind === 'video')).toBe(true);
+    expect(publicContent.media.filter((m) => m.kind === 'image').length).toBeGreaterThanOrEqual(4);
+    expect(publicContent.media.filter((m) => m.kind === 'video').length).toBeGreaterThanOrEqual(2);
     expect(publicContent.media.some((m) => m.kind === 'audio')).toBe(true);
+
+    const imageBlocks = publicContent.pages.flatMap((p) =>
+      p.blocks.filter((b) => b.type === 'image'),
+    );
+    expect(imageBlocks.length).toBeGreaterThanOrEqual(4);
+
+    const videoBlocks = publicContent.pages.flatMap((p) =>
+      p.blocks.filter((b) => b.type === 'video'),
+    );
+    expect(videoBlocks.length).toBeGreaterThanOrEqual(2);
 
     for (const asset of publicContent.media) {
       expect(asset.source).not.toHaveProperty('searchQuery');
@@ -172,15 +217,23 @@ describe('lessonGenerationGraph', () => {
       lessonName: 'Keeping Time',
       hook: 'Hook',
       meaning: 'Meaning',
+      siblingLessonNames: ['Hand Techniques', 'First Groove'],
       learnerContext: 'Formats: Video (video demos)',
       allowVideo: true,
       allowAudio: true,
       allowImages: true,
     });
     expect(prompt).toContain('imageQuery');
-    expect(prompt).toContain('videoQuery');
+    expect(prompt).toContain('videoQueries');
     expect(prompt).toContain('starting with "Drums"');
     expect(prompt).toContain('Learner prefs');
     expect(prompt).toContain('Formats: Video');
+    expect(prompt).toContain('What You Will Learn');
+    expect(prompt).toContain('at least ~120 words');
+    expect(prompt).toContain('Forbidden generic headings');
+    expect(prompt).toContain('Hand Techniques');
+    expect(prompt).toContain('AVOID repeating');
+    expect(prompt).toContain('distinct imageQuery');
+    expect(prompt).toContain('2 or 3 DIFFERENT');
   });
 });

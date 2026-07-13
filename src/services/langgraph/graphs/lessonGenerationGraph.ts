@@ -95,43 +95,114 @@ export function parseLessonDraft(raw: string): LessonDraft {
 
 function buildFallbackDraft(state: typeof LessonGenerationState.State): LessonDraft {
   const name = state.sessionConfig.name || 'Lesson';
+  const meaning =
+    state.sessionConfig.meaning?.trim() ||
+    `Build a clear, practical understanding of ${name}.`;
+  const hook =
+    state.sessionConfig.hook?.trim() ||
+    `What changes when you can confidently use ${name}?`;
+  const goal = state.personalize.learningGoal?.trim();
+
   return {
     pages: [
       {
         heading: 'What You Will Learn',
-        markdown: `**${name}**\n\n${state.sessionConfig.meaning}\n\n${state.sessionConfig.hook}`,
+        markdown: [
+          goal
+            ? `This lesson on **${name}** moves you closer to: ${goal}`
+            : `This lesson focuses on **${name}** in ${state.hobby}.`,
+          '',
+          hook,
+          '',
+          `* **Understand the idea** — ${meaning}`,
+          `* **Spot it in context** — recognize when ${name} applies during play or practice`,
+          `* **Try a focused drill** — one short exercise you can repeat today`,
+          `* **Avoid a common trap** — notice the mistake beginners make with ${name}`,
+          '',
+          `Why it matters: mastering **${name}** gives you a concrete skill you can use in casual ${state.hobby} sessions, not just theory.`,
+        ].join('\n'),
         imageQuery: `${state.hobby} ${name} beginner illustration`,
       },
       {
-        heading: 'The Core Idea',
-        markdown: `Start with the basics of **${name}**. Focus on one clear skill at a time and practice slowly.`,
-        imageQuery: `${state.hobby} ${name} core concept diagram`,
+        heading: `Understanding ${name}`,
+        markdown: [
+          meaning,
+          '',
+          `In ${state.hobby}, **${name}** is a building block you will reuse later. Start by naming the pieces involved and how they connect.`,
+          '',
+          `Keep the focus narrow: one clear definition, one visual or board example, and one reason this skill helps your goal.`,
+        ].join('\n'),
+        imageQuery: `${state.hobby} ${name} concept diagram`,
       },
       {
-        heading: 'Try It Yourself',
-        markdown: `Practice the key movement or idea from **${name}**. Keep the tempo steady and notice what feels awkward — that is where learning happens.`,
-        imageQuery: `${state.hobby} practice ${name}`,
+        heading: `A Clear Example of ${name}`,
+        markdown: [
+          `Walk through one concrete example of **${name}**. Describe the starting setup, the key decision, and the result.`,
+          '',
+          `1. Set up a simple position or scenario.`,
+          `2. Apply the idea from **${name}** step by step.`,
+          `3. Check the outcome against the lesson meaning.`,
+          '',
+          `If something feels unclear, slow down and restate the rule in your own words before continuing.`,
+        ].join('\n'),
+        imageQuery: `${state.hobby} ${name} worked example`,
       },
       {
-        heading: 'How to Apply It',
-        markdown: `Use **${name}** in a short real-world session today. Consistency matters more than speed.`,
-        imageQuery: `${state.hobby} applying ${name}`,
+        heading: `Practice ${name} Today`,
+        markdown: [
+          `Do a short practice focused only on **${name}**.`,
+          '',
+          `1. Spend 5–10 minutes on one drill tied to this lesson.`,
+          `2. Say the key idea out loud before each attempt.`,
+          `3. Note one mistake you caught and how you fixed it.`,
+          '',
+          `End with one real ${state.hobby} moment (a puzzle, position, or short game) where you deliberately use **${name}**.`,
+        ].join('\n'),
+        imageQuery: `${state.hobby} ${name} practice drill`,
+      },
+      {
+        heading: `Common Mistakes with ${name}`,
+        markdown: [
+          `Beginners often rush **${name}** or mix it with a sibling skill.`,
+          '',
+          `Watch for: skipping the setup, guessing instead of checking, and practicing too fast to notice errors.`,
+          '',
+          `Fix: slow down, name the rule, then try one clean repetition.`,
+        ].join('\n'),
+        imageQuery: `${state.hobby} ${name} common mistake diagram`,
+      },
+      {
+        heading: `Apply ${name} in a Short Session`,
+        markdown: [
+          `Close the loop by using **${name}** in a real ${state.hobby} session today.`,
+          '',
+          `Pick one situation where the lesson meaning applies, execute the idea once, then review what worked.`,
+        ].join('\n'),
+        imageQuery: `${state.hobby} ${name} real session application`,
       },
     ],
-    videoQuery: `${state.hobby} ${name} beginner tutorial`,
+    videoQueries: [
+      `${state.hobby} ${name} explained beginner`,
+      `${state.hobby} ${name} example demo`,
+      `${state.hobby} ${name} practice drill`,
+    ],
     audioQuery: `${state.hobby} ${name} play along podcast`,
     keywords: [
       {
         name,
-        description: state.sessionConfig.meaning || `Key idea from ${name}`,
+        description: meaning,
       },
       {
-        name: 'Practice',
-        description: 'Short, focused repetition that builds skill.',
+        name: 'Worked example',
+        description: `A concrete walkthrough that shows ${name} in action.`,
       },
       {
-        name: 'Consistency',
-        description: 'Showing up regularly matters more than long sessions.',
+        name: 'Focused drill',
+        description: `A short practice loop that isolates ${name} before full play.`,
+      },
+      {
+        name: 'Transfer',
+        description: `Using ${name} in a real ${state.hobby} session after the drill.`,
       },
     ],
   };
@@ -198,8 +269,11 @@ function validateDraft(
     if (state.allowImages && !parsed.data.pages.some((p) => p.imageQuery)) {
       errors.push('At least one page needs an imageQuery');
     }
-    if (state.allowVideo && !parsed.data.videoQuery) {
-      errors.push('videoQuery is required');
+    const hasVideoQuery =
+      Boolean(parsed.data.videoQuery?.trim()) ||
+      (parsed.data.videoQueries?.some((q) => q.trim()) ?? false);
+    if (state.allowVideo && !hasVideoQuery) {
+      errors.push('videoQuery or videoQueries is required');
     }
     if (state.allowAudio && !parsed.data.audioQuery) {
       errors.push('audioQuery is required');
@@ -225,15 +299,23 @@ async function resolveMedia(
   const media: LessonMediaAsset[] = [];
   const skipped: string[] = [];
   const draft = state.draft;
+  const usedImageUrls = new Set<string>();
 
   if (state.allowImages) {
     const queries = draft.pages
       .map((p) => ({ query: p.imageQuery, heading: p.heading }))
       .filter((p): p is { query: string; heading: string } => Boolean(p.query));
 
-    const toFetch = queries.length > 0 ? queries.slice(0, 3) : [
-      { query: `${state.hobby} ${state.sessionConfig.name}`, heading: state.sessionConfig.name },
-    ];
+    // One image per page (cap at 6) so lessons aren't stuck with 1–3 lookalikes
+    const toFetch =
+      queries.length > 0
+        ? queries.slice(0, 6)
+        : [
+            {
+              query: `${state.hobby} ${state.sessionConfig.name}`,
+              heading: state.sessionConfig.name,
+            },
+          ];
 
     for (const item of toFetch) {
       const asset = await resolveLessonImage({
@@ -242,7 +324,10 @@ async function resolveMedia(
         userId: state.userId,
         roadmapId: state.roadmapId,
         nodeId: state.nodeId,
+        excludeUrls: usedImageUrls,
       });
+      if (asset.source.sourceUrl) usedImageUrls.add(asset.source.sourceUrl);
+      usedImageUrls.add(asset.url);
       media.push(asset);
     }
   } else {
@@ -250,14 +335,30 @@ async function resolveMedia(
   }
 
   if (state.allowVideo) {
-    const video = await resolveYouTubeVideo(
-      draft.videoQuery ?? `${state.hobby} ${state.sessionConfig.name} tutorial`,
-      'video',
-      { hobby: state.hobby, lessonName: state.sessionConfig.name },
-    );
-    if (video) {
-      media.push(video);
-    } else {
+    const videoQueries = [
+      ...(draft.videoQueries ?? []),
+      ...(draft.videoQuery ? [draft.videoQuery] : []),
+    ]
+      .map((q) => q.trim())
+      .filter(Boolean);
+    const uniqueQueries = [...new Set(videoQueries)];
+    if (uniqueQueries.length === 0) {
+      uniqueQueries.push(`${state.hobby} ${state.sessionConfig.name} tutorial`);
+    }
+
+    const usedVideoIds: string[] = [];
+    for (const query of uniqueQueries.slice(0, 3)) {
+      const video = await resolveYouTubeVideo(query, 'video', {
+        hobby: state.hobby,
+        lessonName: state.sessionConfig.name,
+        excludeExternalIds: usedVideoIds,
+      });
+      if (video) {
+        if (video.source.externalId) usedVideoIds.push(video.source.externalId);
+        media.push(video);
+      }
+    }
+    if (usedVideoIds.length === 0) {
       skipped.push('video');
     }
   } else {
@@ -282,6 +383,19 @@ async function resolveMedia(
   return { media, skippedModalities: skipped };
 }
 
+function videoPageIndexes(pageCount: number, videoCount: number): number[] {
+  if (pageCount <= 0 || videoCount <= 0) return [];
+  if (videoCount === 1) return [Math.min(1, pageCount - 1)];
+  if (videoCount === 2) {
+    return [Math.min(1, pageCount - 1), Math.min(Math.max(pageCount - 2, 2), pageCount - 1)];
+  }
+  return [
+    Math.min(1, pageCount - 1),
+    Math.min(Math.floor(pageCount / 2), pageCount - 1),
+    Math.min(Math.max(pageCount - 2, 2), pageCount - 1),
+  ].slice(0, videoCount);
+}
+
 function assemblePages(
   state: typeof LessonGenerationState.State,
 ): Partial<typeof LessonGenerationState.State> {
@@ -290,16 +404,21 @@ function assemblePages(
   }
 
   const images = state.media.filter((m) => m.kind === 'image');
-  const video = state.media.find((m) => m.kind === 'video');
+  const videos = state.media.filter((m) => m.kind === 'video');
   const audio = state.media.find((m) => m.kind === 'audio');
+  const videoAt = new Map<number, LessonMediaAsset>();
+  videoPageIndexes(state.draft.pages.length, videos.length).forEach((pageIndex, i) => {
+    const video = videos[i];
+    if (video) videoAt.set(pageIndex, video);
+  });
 
   const pages: LessonPage[] = state.draft.pages.map((page, index) => {
     const blocks: LessonPage['blocks'] = [
       { type: 'markdown', markdown: page.markdown },
     ];
 
-    const image = images[index] ?? images[0];
-    if (image && index < images.length) {
+    const image = images[index];
+    if (image) {
       blocks.push({
         type: 'image',
         mediaId: image.id,
@@ -307,7 +426,8 @@ function assemblePages(
       });
     }
 
-    if (index === 1 && video) {
+    const video = videoAt.get(index);
+    if (video) {
       blocks.push({
         type: 'video',
         mediaId: video.id,
@@ -326,9 +446,14 @@ function assemblePages(
     return { heading: page.heading, blocks };
   });
 
-  // Ensure video/audio appear somewhere if pages were short
-  if (video && !pages.some((p) => p.blocks.some((b) => b.type === 'video'))) {
-    pages[0]?.blocks.push({ type: 'video', mediaId: video.id, caption: video.title });
+  for (const video of videos) {
+    if (!pages.some((p) => p.blocks.some((b) => b.type === 'video' && b.mediaId === video.id))) {
+      pages[Math.min(1, pages.length - 1)]?.blocks.push({
+        type: 'video',
+        mediaId: video.id,
+        caption: video.title,
+      });
+    }
   }
   if (audio && !pages.some((p) => p.blocks.some((b) => b.type === 'audio'))) {
     pages[pages.length - 1]?.blocks.push({
@@ -362,7 +487,6 @@ function assemblePages(
 
   const validation = validateFinalContent(content, {
     requireImage: state.allowImages,
-    // Skip hard-fail when search APIs found nothing — better empty than wrong-topic Python/CS filler
     requireVideo: state.allowVideo && !state.skippedModalities.includes('video'),
     requireAudio: state.allowAudio && !state.skippedModalities.includes('audio'),
   });
